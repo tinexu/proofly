@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import type { ClaimedRole, Offer, PermissionClaim, Platform } from "@/lib/types";
 import { PERMISSION_LABEL, PLATFORM_LABEL, ROLE_LABEL } from "@/lib/content";
-import { useStore } from "@/lib/store";
+import { api } from "@/lib/api";
+import { RequireAuth } from "@/lib/auth";
 
 function platformFromUrl(url: string): Platform | null {
   try {
@@ -23,7 +24,6 @@ function platformFromUrl(url: string): Platform | null {
 function OfferForm() {
   const params = useSearchParams();
   const router = useRouter();
-  const { createCase } = useStore();
   const sourceUrl = params.get("url") ?? "";
   const suggested = useMemo(() => (sourceUrl ? platformFromUrl(sourceUrl) : null), [sourceUrl]);
 
@@ -42,11 +42,12 @@ function OfferForm() {
     paymentMethod: "",
   });
   const [errors, setErrors] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
 
   const set = <K extends keyof Offer>(key: K, value: Offer[K]) =>
     setOffer((o) => ({ ...o, [key]: value, ...(key === "platform" ? { platformSuggested: false } : {}) }));
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const problems: string[] = [];
     if (!offer.address.trim()) problems.push("Add the address, even if it's approximate.");
@@ -56,8 +57,14 @@ function OfferForm() {
       problems.push("The move-out date is before the move-in date.");
     setErrors(problems);
     if (problems.length) return;
-    const id = createCase({ ...offer, platformSuggested: false });
-    router.push(`/case/${id}`);
+    setBusy(true);
+    try {
+      const created = await api.createCase({ ...offer, platformSuggested: false });
+      router.push(`/case/${created.id}`);
+    } catch (err) {
+      setErrors([err instanceof Error ? err.message : "Couldn't save the case."]);
+      setBusy(false);
+    }
   }
 
   return (
@@ -109,7 +116,7 @@ function OfferForm() {
       </fieldset>
 
       <div className="row">
-        <button type="submit" className="button">Create my checklist</button>
+        <button type="submit" className="button" disabled={busy}>{busy ? "Saving…" : "Create my checklist"}</button>
       </div>
     </form>
   );
@@ -117,8 +124,10 @@ function OfferForm() {
 
 export default function NewCasePage() {
   return (
-    <Suspense fallback={<p className="muted">Loading…</p>}>
-      <OfferForm />
-    </Suspense>
+    <RequireAuth>
+      <Suspense fallback={<p className="muted">Loading…</p>}>
+        <OfferForm />
+      </Suspense>
+    </RequireAuth>
   );
 }

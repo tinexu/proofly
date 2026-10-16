@@ -72,7 +72,13 @@
     text-align: center;
     padding: 6px 16px;
   }
-  .site-header { max-width: 720px; margin: 0 auto; padding: 16px; }
+  .site-header { max-width: 720px; margin: 0 auto; padding: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .header-nav { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .header-email { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .button.small-button { min-height: 36px; padding: 6px 12px; font-size: 0.9rem; }
+  @media (max-width: 480px) { .header-email { display: none; } }
+  .case-link { display: block; text-decoration: none; color: var(--ink); }
+  .case-link:hover { border-color: var(--accent); }
   .brand { font-weight: 700; font-size: 1.15rem; color: var(--ink); text-decoration: none; }
   
   .container { max-width: 720px; margin: 0 auto; padding: 8px 16px 64px; }

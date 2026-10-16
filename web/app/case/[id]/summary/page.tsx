@@ -1,32 +1,41 @@
 "use client";
 
-// S6 / Decision summary: next steps, what is NOT verified, export (F06), report, delete (F07).
+// S6 / Decision summary: next steps, what is not verified, export (F06), report, delete (F07).
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CLAIM_TYPES, type Case, type Decision } from "@/lib/types";
 import { CLAIM_CONTENT, FACT_LABEL } from "@/lib/content";
 import { findDiscrepancies, paymentFlags, unknowns } from "@/lib/rules";
 import { DECISION_LABEL, buildSummary } from "@/lib/summary";
-import { useStore } from "@/lib/store";
-import { CaseShell, Notice } from "@/components/ui";
+import { api } from "@/lib/api";
+import { CaseShell, Notice, type CaseContext } from "@/components/ui";
 
-function SummaryPanel({ kase }: { kase: Case }) {
+function SummaryPanel({ kase, ctx }: { kase: Case; ctx: CaseContext }) {
   const router = useRouter();
-  const { updateCase, deleteCase } = useStore();
   const [decision, setDecision] = useState<Decision | undefined>(kase.decision);
   const [note, setNote] = useState(kase.decisionNote ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const missing = unknowns(kase);
   const disc = findDiscrepancies(kase);
   const flags = paymentFlags(kase.offer);
   const nextChecks = CLAIM_TYPES.filter((t) => kase.claims[t].state !== "SUPPORTED").map((t) => CLAIM_CONTENT[t].independentChecks[0]);
 
-  function saveDecision() {
+  async function saveDecision() {
     if (!decision) return;
-    updateCase(kase.id, (c) => ({ ...c, decision, decisionNote: note.trim() || undefined }), `Recorded decision: ${DECISION_LABEL[decision]}`);
-    setSaved(true);
+    setError("");
+    setBusy(true);
+    try {
+      await ctx.update(await api.setDecision(kase.id, decision, note.trim()));
+      setSaved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save the decision.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function exportSummary() {
@@ -39,9 +48,16 @@ function SummaryPanel({ kase }: { kase: Case }) {
     URL.revokeObjectURL(url);
   }
 
-  function remove() {
-    deleteCase(kase.id);
-    router.push("/");
+  async function remove() {
+    setError("");
+    setBusy(true);
+    try {
+      await api.deleteCase(kase.id);
+      router.push("/cases");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't delete the case.");
+      setBusy(false);
+    }
   }
 
   return (
@@ -79,12 +95,13 @@ function SummaryPanel({ kase }: { kase: Case }) {
           ))}
         </fieldset>
         <label htmlFor="note">Note to yourself (optional)</label>
-        <textarea id="note" rows={2} value={note} onChange={(e) => { setNote(e.target.value); setSaved(false); }} />
+        <textarea id="note" rows={2} maxLength={1000} value={note} onChange={(e) => { setNote(e.target.value); setSaved(false); }} />
         <div className="row">
-          <button className="button" onClick={saveDecision} disabled={!decision}>Save decision</button>
+          <button className="button" onClick={saveDecision} disabled={!decision || busy}>{busy ? "Saving…" : "Save decision"}</button>
           <button className="button secondary" onClick={exportSummary}>Download summary</button>
         </div>
         {saved && <p className="small" role="status">Saved.</p>}
+        {error && <p className="error small" role="alert">{error}</p>}
       </section>
 
       <section className="card stack">
@@ -97,12 +114,12 @@ function SummaryPanel({ kase }: { kase: Case }) {
 
       <section className="card stack danger-zone">
         <h2>Delete this case</h2>
-        <p className="small">This removes the case, its evidence and any request links. In the full product, we'll explain how long backups are kept.</p>
+        <p className="small">Your case disappears right away and its personal details (address, link, contact, notes) are wiped at once. Everything left is permanently removed within 24 hours.</p>
         {!confirmDelete ? (
           <div className="row"><button className="button ghost" onClick={() => setConfirmDelete(true)}>Delete case</button></div>
         ) : (
           <div className="row">
-            <button className="button danger" onClick={remove}>Yes, delete permanently</button>
+            <button className="button danger" onClick={remove} disabled={busy}>Yes, delete permanently</button>
             <button className="button ghost" onClick={() => setConfirmDelete(false)}>Cancel</button>
           </div>
         )}
@@ -112,5 +129,5 @@ function SummaryPanel({ kase }: { kase: Case }) {
 }
 
 export default function SummaryPage() {
-  return <CaseShell>{(kase) => <SummaryPanel kase={kase} />}</CaseShell>;
+  return <CaseShell>{(kase, ctx) => <SummaryPanel kase={kase} ctx={ctx} />}</CaseShell>;
 }

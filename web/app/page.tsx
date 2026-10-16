@@ -4,12 +4,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useStore } from "@/lib/store";
-import { SAMPLE_CASE_ID } from "@/lib/sample";
+import { useAuth } from "@/lib/auth";
 
 export default function StartPage() {
   const router = useRouter();
-  const { resetSample } = useStore();
+  const { user } = useAuth();
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
 
@@ -54,19 +53,17 @@ export default function StartPage() {
         </div>
         <p id="privacy" className="muted small">
           We only use what you type here. We don't read your messages or log into your accounts. Don't paste other
-          people's private details. In this prototype, nothing leaves your browser.
+          people's private details. You'll be asked to sign in by email so you can come back to your case.
         </p>
       </form>
 
-      <div className="card subtle stack">
-        <strong>Running a usability session?</strong>
-        <p className="small">Open a sample case that shows supported, unresolved and conflicting claims.</p>
-        <div className="row">
-          <Link className="button secondary" href={`/case/${SAMPLE_CASE_ID}`} onClick={() => resetSample()}>
-            Open the sample case
-          </Link>
+      {user && (
+        <div className="card subtle stack">
+          <strong>Welcome back</strong>
+          <p className="small">Pick up where you left off.</p>
+          <div className="row"><Link className="button secondary" href="/cases">My cases</Link></div>
         </div>
-      </div>
+      )}
 
       <section className="stack">
         <h2>What Proofly does and doesn't do</h2>

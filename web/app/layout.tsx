@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
 import "./globals.css";
-import { StoreProvider } from "@/lib/store";
+import { AuthProvider } from "@/lib/auth";
+import { SiteHeader } from "@/components/header";
 
 export const metadata: Metadata = {
-  title: "Proofly prototype",
-  description: "Check a sublet before you pay. Usability prototype, not a live service.",
+  title: "Proofly",
+  description: "Check a sublet before you pay. Early development version.",
   robots: { index: false, follow: false },
 };
 
@@ -17,14 +17,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <a className="skip" href="#main">Skip to content</a>
         <div className="proto-banner" role="note">
-          Prototype for usability testing. Data stays in this browser; nothing is checked for real.
+          Early development version. Checks aren&apos;t complete yet; don&apos;t rely on Proofly for a real decision.
         </div>
-        <header className="site-header">
-          <Link href="/" className="brand">Proofly</Link>
-        </header>
-        <StoreProvider>
+        <AuthProvider>
+          <SiteHeader />
           <main id="main" className="container">{children}</main>
-        </StoreProvider>
+        </AuthProvider>
       </body>
     </html>
   );

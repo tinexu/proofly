@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Case, Claim, ClaimState } from "@/lib/types";
 import { CLAIM_CONTENT, CORE_DISCLAIMER, EVIDENCE_KIND_LABEL, EVIDENCE_SOURCE_LABEL, STATE_LABEL } from "@/lib/content";
 import { assertedFor, displayStatus } from "@/lib/rules";
-import { useCase } from "@/lib/store";
+import { ApiError, api, caseFromApi, type ApiCase } from "@/lib/api";
+import { RequireAuth } from "@/lib/auth";
 
 export function formatWhen(iso: string) {
   return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -68,21 +69,43 @@ const STEPS = [
   { href: "/summary", label: "Decision", code: "S6" },
 ];
 
-/** Loads the case from the URL and renders the shared header + step navigation. */
-export function CaseShell({ children }: { children: (kase: Case) => ReactNode }) {
-  const params = useParams<{ id: string }>();
-  const pathname = usePathname();
-  const { kase, hydrated } = useCase(params.id);
+export interface CaseContext {
+  /** Re-fetch the case and its activity from the API. */
+  reload: () => Promise<void>;
+  /** Use a case the API just returned (saves a round trip), then refresh activity. */
+  update: (fresh: ApiCase) => Promise<void>;
+}
 
-  if (!hydrated) return <p className="muted">Loading case…</p>;
-  if (!kase)
+function LoadedCase({ id, children }: { id: string; children: (kase: Case, ctx: CaseContext) => ReactNode }) {
+  const pathname = usePathname();
+  const [kase, setKase] = useState<Case | null>(null);
+  const [error, setError] = useState<{ status: number; message: string } | null>(null);
+
+  const load = useCallback(async (fresh?: ApiCase) => {
+    try {
+      const [c, activity] = await Promise.all([fresh ? Promise.resolve(fresh) : api.getCase(id), api.activity(id)]);
+      setKase(caseFromApi(c, activity));
+      setError(null);
+    } catch (e) {
+      setError(e instanceof ApiError ? { status: e.status, message: e.message } : { status: 0, message: String(e) });
+    }
+  }, [id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const ctx = useMemo<CaseContext>(() => ({ reload: () => load(), update: (fresh) => load(fresh) }), [load]);
+
+  if (error)
     return (
       <div className="stack">
-        <h1>Case not found</h1>
-        <p>It may have been deleted, or it was opened in a different browser.</p>
-        <Link className="button" href="/">Start a new check</Link>
+        <h1>{error.status === 404 || error.status === 422 ? "Case not found" : "Can't load this case"}</h1>
+        <p>{error.status === 404 || error.status === 422 ? "It may have been deleted, or it belongs to a different account." : error.message}</p>
+        <Link className="button" href="/cases">Back to my cases</Link>
       </div>
     );
+  if (!kase) return <p className="muted">Loading case…</p>;
 
   const base = `/case/${kase.id}`;
   return (
@@ -102,8 +125,18 @@ export function CaseShell({ children }: { children: (kase: Case) => ReactNode })
           );
         })}
       </nav>
-      {children(kase)}
+      {children(kase, ctx)}
       <p className="disclaimer small">{CORE_DISCLAIMER}</p>
     </div>
+  );
+}
+
+/** Loads the case named in the URL (signed in, your own case) with header + step navigation. */
+export function CaseShell({ children }: { children: (kase: Case, ctx: CaseContext) => ReactNode }) {
+  const params = useParams<{ id: string }>();
+  return (
+    <RequireAuth>
+      <LoadedCase id={params.id}>{children}</LoadedCase>
+    </RequireAuth>
   );
 }

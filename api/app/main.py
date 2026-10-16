@@ -6,7 +6,7 @@ Docs:         http://localhost:8000/docs  (turned off in production)
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.config import get_settings
 from app.db import database_is_reachable
@@ -38,6 +38,14 @@ async def security_headers(request: Request, call_next) -> Response:
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@app.get("/", include_in_schema=False, response_model=None)
+def root() -> RedirectResponse | dict[str, str]:
+    """In development, send visitors to the docs. In production, just name the service."""
+    if settings.is_production:
+        return {"service": "proofly-api"}
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/health", tags=["health"])

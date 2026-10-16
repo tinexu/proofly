@@ -12,6 +12,12 @@ def test_health_is_ok():
     assert res.json() == {"status": "ok"}
 
 
+def test_root_redirects_to_docs_in_development():
+    res = client.get("/", follow_redirects=False)
+    assert res.status_code == 307
+    assert res.headers["location"] == "/docs"
+
+
 def test_security_headers_present():
     res = client.get("/health")
     assert res.headers["X-Content-Type-Options"] == "nosniff"

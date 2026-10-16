@@ -1,0 +1,77 @@
+# Runs on every push and pull request (Week 4, Day 10).
+# - api: all API tests against a real Postgres, plus a check that migrations match the models
+# - web: typecheck, false-assurance copy check, and a production build
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: api
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: proofly
+          POSTGRES_PASSWORD: proofly
+          POSTGRES_DB: proofly
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U proofly"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      PROOFLY_ENV: test
+      PROOFLY_DATABASE_URL: postgresql+psycopg://proofly:proofly@localhost:5432/proofly
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: api/requirements.txt
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Migrations apply cleanly
+        run: python -m alembic upgrade head
+      - name: Migrations match the models
+        run: python -m alembic check
+      - name: Tests
+        run: python -m pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Copy check (no false assurance)
+        run: npm run check:copy
+      - name: Build
+        run: npm run build

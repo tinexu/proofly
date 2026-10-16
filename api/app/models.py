@@ -6,7 +6,7 @@ Evidence, evidence requests and uploads arrive in Week 6.
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -57,8 +57,14 @@ def _uuid_pk() -> Mapped[uuid.UUID]:
     return mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
 
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def _created_at() -> Mapped[datetime]:
-    return mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # Set by the app with the exact time. Postgres's now() is the same for every
+    # row written in one transaction, which would make ordering ambiguous.
+    return mapped_column(DateTime(timezone=True), default=_utcnow, server_default=func.now(), nullable=False)
 
 
 class User(Base):

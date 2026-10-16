@@ -6,6 +6,8 @@ FastAPI backend for Proofly.
 - Week 4, Day 2: database tables (users, cases, claims, audit events) and the first migration
 - Week 4, Day 3: email magic-link sign-in (emails print to the terminal in development)
 - Week 4, Day 4: sessions (stay signed in), `/auth/me`, sign-out, owner-only case access
+- Week 4, Day 5: `POST /cases`, `GET /cases`, `GET /cases/{id}` (signed in, your own cases only)
+- Week 4, Day 6: review a claim (`PATCH /cases/{id}/claims/{type}`) with a reason, and undo it (`DELETE …/review`)
 
 ## Signing in (development)
 

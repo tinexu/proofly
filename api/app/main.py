@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from app import auth
+from app import auth, cases, claims
 from app.config import get_settings
 from app.db import database_is_reachable
 
@@ -32,6 +32,8 @@ app.add_middleware(
 
 
 app.include_router(auth.router)
+app.include_router(cases.router)
+app.include_router(claims.router)
 
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}

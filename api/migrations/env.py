@@ -1,10 +1,16 @@
 """Alembic environment: points migrations at our models and our settings."""
 
+from logging.config import fileConfig
+
 from alembic import context
 from sqlalchemy import create_engine, pool
 
 from app.config import get_settings
 from app.models import Base
+
+# Show "Running upgrade ..." lines, using the logging settings in alembic.ini.
+if context.config.config_file_name is not None:
+    fileConfig(context.config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

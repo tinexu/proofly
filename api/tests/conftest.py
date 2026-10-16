@@ -14,7 +14,12 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session
 
+from fastapi.testclient import TestClient
+
 from app.config import get_settings
+from app.db import get_session
+from app.email import get_email_sender
+from app.main import app
 
 TEST_DB_NAME = "proofly_test"
 
@@ -55,6 +60,32 @@ def db_engine() -> Iterator[Engine]:
     engine = create_engine(url)
     yield engine
     engine.dispose()
+
+
+class CapturingEmailSender:
+    """Keeps sent emails in a list instead of printing them."""
+
+    def __init__(self) -> None:
+        self.sent: list = []
+
+    def send(self, email) -> None:
+        self.sent.append(email)
+
+
+@pytest.fixture
+def outbox() -> CapturingEmailSender:
+    return CapturingEmailSender()
+
+
+@pytest.fixture
+def client(db: Session, outbox: CapturingEmailSender) -> Iterator[TestClient]:
+    """An API client wired to the per-test database session and a fake outbox."""
+    app.dependency_overrides[get_session] = lambda: db
+    app.dependency_overrides[get_email_sender] = lambda: outbox
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.clear()
 
 
 @pytest.fixture

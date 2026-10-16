@@ -4,6 +4,14 @@ FastAPI backend for Proofly.
 
 - Week 4, Day 1: skeleton, settings, health checks, local Postgres
 - Week 4, Day 2: database tables (users, cases, claims, audit events) and the first migration
+- Week 4, Day 3: email magic-link sign-in (emails print to the terminal in development)
+
+## Signing in (development)
+
+1. `POST /auth/magic-link` with `{"email": "you@example.edu"}`. The email, including the link, prints in the terminal running uvicorn.
+2. Copy the `token=` value from that link and `POST /auth/verify` with `{"token": "..."}`.
+
+Links work once and expire after 15 minutes. Staying signed in (sessions) arrives on Day 4.
 
 ## First-time setup
 

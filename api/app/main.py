@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
+from app import auth
 from app.config import get_settings
 from app.db import database_is_reachable
 
@@ -28,6 +29,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
 )
+
+
+app.include_router(auth.router)
 
 
 @app.middleware("http")

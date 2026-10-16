@@ -1,4 +1,6 @@
-"""Database tables (spec section 10). Day 2: users, cases, claims, audit events.
+"""Database tables (spec section 10).
+
+Day 2: users, cases, claims, audit events. Day 3: login tokens.
 
 Evidence, evidence requests and uploads arrive in Week 6.
 """
@@ -176,4 +178,27 @@ class AuditEvent(Base):
     __table_args__ = (
         CheckConstraint(check_in("actor_type", AUDIT_ACTORS), name="actor_type_valid"),
         Index("ix_audit_events_case_id_created_at", "case_id", "created_at"),
+    )
+
+
+class LoginToken(Base):
+    """A one-time sign-in link (Day 3).
+
+    Stores the email rather than a user, so no account is created until the
+    link is actually used. Only the token's hash is stored.
+    """
+
+    __tablename__ = "login_tokens"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = _created_at()
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint("email = lower(email)", name="email_lowercase"),
+        CheckConstraint("expires_at > created_at", name="expires_after_created"),
+        Index("ix_login_tokens_email_created_at", "email", "created_at"),
     )

@@ -16,6 +16,14 @@ class Settings(BaseSettings):
     # Comma-separated list of web origins allowed to call the API.
     cors_origins: str = "http://localhost:3000"
 
+    # Sign-in (Day 3). Links in emails point at the web app.
+    web_base_url: str = "http://localhost:3000"
+    magic_link_ttl_minutes: int = 15
+    # Max sign-in emails per address per hour; extra requests are silently dropped.
+    magic_link_hourly_limit: int = 5
+    # "console" prints emails to the terminal. A real provider arrives in Week 8.
+    email_backend: str = "console"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

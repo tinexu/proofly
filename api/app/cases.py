@@ -1,5 +1,5 @@
 """Cases (Week 4, Day 5): create, list and view your own cases.
-Day 7 adds each case's activity log. Day 8 adds deletion.
+Day 7 adds each case's activity log. Day 8 adds deletion. Day 9 adds saving a decision.
 
 A case is one sublet offer being checked (S2). Creating a case also creates
 its five claims, all starting at UNCHECKED. The rules engine arrives in Week 7.
@@ -66,6 +66,15 @@ class CaseCreate(BaseModel):
         if self.monthly_rent is None and not (self.start_date and self.end_date):
             raise ValueError("Add the monthly rent or the move-in and move-out dates.")
         return self
+
+
+class DecisionUpdate(BaseModel):
+    """S6: the renter's decision and an optional private note. null clears it."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    decision: Literal[DECISIONS] | None  # type: ignore[valid-type]
+    decision_note: str | None = Field(default=None, max_length=1000)
 
 
 class ClaimOut(BaseModel):
@@ -158,6 +167,22 @@ def list_cases(db: Session = Depends(get_session), user: User = Depends(current_
 
 @router.get("/{case_id}", response_model=CaseOut)
 def get_case(kase: Case = Depends(owned_case)) -> CaseOut:
+    return to_case_out(kase)
+
+
+@router.put("/{case_id}/decision", response_model=CaseOut)
+def set_decision(
+    body: DecisionUpdate,
+    kase: Case = Depends(owned_case),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_session),
+) -> CaseOut:
+    kase.decision = body.decision
+    kase.decision_note = body.decision_note or None
+    # The note is private and never goes in the audit log; the decision code does.
+    record(db, "case.decision_recorded", actor_user_id=user.id, case_id=kase.id, decision=body.decision or "cleared")
+    db.commit()
+    db.refresh(kase)
     return to_case_out(kase)
 
 

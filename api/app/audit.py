@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.models import AuditEvent
 
 # Keys allowed in `detail`, and nothing else. Values are short codes, never free text.
-ALLOWED_DETAIL_KEYS = {"method", "platform", "claim_type", "from", "to"}
+ALLOWED_DETAIL_KEYS = {"method", "platform", "claim_type", "from", "to", "decision"}
 MAX_VALUE_LENGTH = 40
 
 
@@ -71,6 +71,13 @@ STATE_LABEL = {
 }
 
 
+DECISION_LABEL = {
+    "proceed_independent": "continue after confirming with the landlord",
+    "pause": "pause until missing evidence arrives",
+    "stop": "stop",
+}
+
+
 def describe(event: AuditEvent) -> str:
     d = event.detail or {}
     claim = CLAIM_LABEL.get(d.get("claim_type", ""), "a claim")
@@ -82,6 +89,8 @@ def describe(event: AuditEvent) -> str:
             return f'Marked "{claim}" as {to_state}'
         case "claim.review_cleared":
             return f'Cleared your review of "{claim}"'
+        case "case.decision_recorded":
+            return f"Recorded a decision: {DECISION_LABEL.get(d.get('decision', ''), 'cleared')}"
         case "case.deleted":
             return "Deleted the case"
         case "case.purged":

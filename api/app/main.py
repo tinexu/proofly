@@ -1,0 +1,54 @@
+"""Proofly API entry point.
+
+Run locally:  uvicorn app.main:app --reload --port 8000
+Docs:         http://localhost:8000/docs  (turned off in production)
+"""
+
+from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.config import get_settings
+from app.db import database_is_reachable
+
+settings = get_settings()
+
+app = FastAPI(
+    title="Proofly API",
+    version="0.1.0",
+    docs_url=None if settings.is_production else "/docs",
+    redoc_url=None,
+    openapi_url=None if settings.is_production else "/openapi.json",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Content-Type"],
+)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next) -> Response:
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/health", tags=["health"])
+def health() -> dict[str, str]:
+    """Liveness: the process is up. Doesn't touch the database."""
+    return {"status": "ok"}
+
+
+@app.get("/health/ready", tags=["health"])
+def ready() -> JSONResponse:
+    """Readiness: the API can reach Postgres."""
+    if database_is_reachable():
+        return JSONResponse({"status": "ok", "database": "reachable"})
+    return JSONResponse({"status": "unavailable", "database": "unreachable"}, status_code=503)

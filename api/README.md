@@ -8,6 +8,14 @@ FastAPI backend for Proofly.
 - Week 4, Day 4: sessions (stay signed in), `/auth/me`, sign-out, owner-only case access
 - Week 4, Day 5: `POST /cases`, `GET /cases`, `GET /cases/{id}` (signed in, your own cases only)
 - Week 4, Day 6: review a claim (`PATCH /cases/{id}/claims/{type}`) with a reason, and undo it (`DELETE …/review`)
+- Week 4, Day 7: append-only audit log, and `GET /cases/{id}/activity` to read a case's history
+
+## Audit log
+
+Every change is recorded through `app/audit.py`'s `record()`, in the same database
+transaction as the change itself. `record()` only accepts short codes for a fixed
+set of detail keys, so addresses, emails and notes can't end up in the log.
+The database refuses to edit or delete audit rows (migration 0004).
 
 ## Signing in (development)
 

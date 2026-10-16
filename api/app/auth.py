@@ -17,7 +17,8 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.email import EmailSender, get_email_sender, magic_link_email
-from app.models import AuditEvent, LoginToken, User, UserSession
+from app.audit import record
+from app.models import LoginToken, User, UserSession
 from app.security import hash_token, new_token, normalize_email
 from app.sessions import clear_session_cookie, current_session, current_user, start_session
 
@@ -119,12 +120,7 @@ def verify_magic_link(
     user.last_login_at = now
     db.flush()
 
-    db.add(AuditEvent(
-        actor_type="user",
-        actor_user_id=user.id,
-        action="auth.signed_up" if new_account else "auth.signed_in",
-        detail={"method": "magic_link"},
-    ))
+    record(db, "auth.signed_up" if new_account else "auth.signed_in", actor_user_id=user.id, method="magic_link")
     start_session(db, user, response, settings)
     db.commit()
     return VerifyResponse(user=UserOut(id=user.id, email=user.email), new_account=new_account)
@@ -143,7 +139,7 @@ def logout(
     settings: Settings = Depends(get_settings),
 ) -> Response:
     session.revoked_at = _now()
-    db.add(AuditEvent(actor_type="user", actor_user_id=session.user_id, action="auth.signed_out", detail={}))
+    record(db, "auth.signed_out", actor_user_id=session.user_id)
     db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
     clear_session_cookie(response, settings)

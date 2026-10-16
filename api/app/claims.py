@@ -19,10 +19,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.access import owned_case
+from app.audit import record
 from app.cases import CaseOut, to_case_out
 from app.db import get_session
 from app.domain import CLAIM_TYPES
-from app.models import AuditEvent, Case, Claim, User
+from app.models import Case, Claim, User
 from app.sessions import current_user
 
 router = APIRouter(prefix="/cases/{case_id}/claims", tags=["claims"])
@@ -72,13 +73,8 @@ def review_claim(
     claim.reviewed_by_id = user.id
     claim.updated_at = datetime.now(timezone.utc)
 
-    db.add(AuditEvent(
-        case_id=kase.id,
-        actor_type="user",
-        actor_user_id=user.id,
-        action="claim.reviewed",
-        detail={"claim_type": claim_type, "from": previous, "to": body.state},
-    ))
+    record(db, "claim.reviewed", actor_user_id=user.id, case_id=kase.id,
+           claim_type=claim_type, **{"from": previous, "to": body.state})
     db.commit()
     db.refresh(kase)
     return to_case_out(kase)
@@ -101,13 +97,8 @@ def clear_review(
         claim.reviewer = "rules"
         claim.reviewed_by_id = None
         claim.updated_at = datetime.now(timezone.utc)
-        db.add(AuditEvent(
-            case_id=kase.id,
-            actor_type="user",
-            actor_user_id=user.id,
-            action="claim.review_cleared",
-            detail={"claim_type": claim_type, "from": previous, "to": "UNCHECKED"},
-        ))
+        record(db, "claim.review_cleared", actor_user_id=user.id, case_id=kase.id,
+               claim_type=claim_type, **{"from": previous, "to": "UNCHECKED"})
         db.commit()
         db.refresh(kase)
     return to_case_out(kase)

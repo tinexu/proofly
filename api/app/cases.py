@@ -1,4 +1,5 @@
 """Cases (Week 4, Day 5): create, list and view your own cases.
+Day 7 adds each case's activity log.
 
 A case is one sublet offer being checked (S2). Creating a case also creates
 its five claims, all starting at UNCHECKED. The rules engine arrives in Week 7.
@@ -18,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.access import owned_case
 from app.db import get_session
 from app.domain import CLAIM_TYPES, CLAIMED_ROLES, DECISIONS, PERMISSION_CLAIMS, PLATFORMS
+from app.audit import describe, record
 from app.models import AuditEvent, Case, Claim, User
 from app.sessions import current_user
 
@@ -107,6 +109,16 @@ class CaseOut(BaseModel):
     claims: list[ClaimOut]
 
 
+class ActivityItem(BaseModel):
+    at: datetime
+    actor: Literal["you", "subletter", "rules", "system"]
+    action: str
+    description: str
+
+
+ACTOR = {"user": "you", "subletter": "subletter", "rules": "rules", "system": "system"}
+
+
 def to_case_out(kase: Case) -> CaseOut:
     order = {t: i for i, t in enumerate(CLAIM_TYPES)}
     out = CaseOut.model_validate(kase)
@@ -129,13 +141,7 @@ def create_case(
     db.add(kase)
     db.flush()
     # Audit details hold IDs and categories only, never the address or contact.
-    db.add(AuditEvent(
-        case_id=kase.id,
-        actor_type="user",
-        actor_user_id=user.id,
-        action="case.created",
-        detail={"platform": kase.platform},
-    ))
+    record(db, "case.created", actor_user_id=user.id, case_id=kase.id, platform=kase.platform)
     db.commit()
     db.refresh(kase)
     return to_case_out(kase)
@@ -153,3 +159,15 @@ def list_cases(db: Session = Depends(get_session), user: User = Depends(current_
 @router.get("/{case_id}", response_model=CaseOut)
 def get_case(kase: Case = Depends(owned_case)) -> CaseOut:
     return to_case_out(kase)
+
+
+@router.get("/{case_id}/activity", response_model=list[ActivityItem])
+def case_activity(kase: Case = Depends(owned_case), db: Session = Depends(get_session)) -> list[ActivityItem]:
+    """The case's history, newest first, in plain words (the activity log on S3)."""
+    events = db.scalars(
+        select(AuditEvent).where(AuditEvent.case_id == kase.id).order_by(AuditEvent.created_at.desc())
+    )
+    return [
+        ActivityItem(at=e.created_at, actor=ACTOR[e.actor_type], action=e.action, description=describe(e))
+        for e in events
+    ]

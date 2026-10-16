@@ -1,6 +1,7 @@
 """Database tables (spec section 10).
 
 Day 2: users, cases, claims, audit events. Day 3: login tokens. Day 4: sessions.
+Week 6, Day 1: evidence requests.
 
 Evidence, evidence requests and uploads arrive in Week 6.
 """
@@ -22,7 +23,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from app.domain import (
@@ -228,3 +229,38 @@ class UserSession(Base):
     user: Mapped[User] = relationship()
 
     __table_args__ = (CheckConstraint("expires_at > created_at", name="expires_after_created"),)
+
+
+class EvidenceRequest(Base):
+    """A private link a renter sends to the subletter (Week 6, Day 1; spec F03).
+
+    It asks only for the claims in `scopes`, expires, can be revoked, and works
+    for one reply. Only a hash of the link's token is stored.
+    """
+
+    __tablename__ = "evidence_requests"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    scopes: Mapped[list[str]] = mapped_column(ARRAY(String(32)), nullable=False)
+    created_at: Mapped[datetime] = _created_at()
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    case: Mapped[Case] = relationship()
+
+    __table_args__ = (
+        CheckConstraint("cardinality(scopes) BETWEEN 1 AND 5", name="scopes_count"),
+        CheckConstraint(
+            "scopes <@ ARRAY[" + ", ".join(f"'{t}'" for t in CLAIM_TYPES) + "]::varchar[]",
+            name="scopes_valid",
+        ),
+        CheckConstraint("expires_at > created_at", name="expires_after_created"),
+        # Links live at most 7 days (spec: short-lived, scoped access).
+        CheckConstraint("expires_at <= created_at + interval '7 days'", name="expires_within_7_days"),
+    )

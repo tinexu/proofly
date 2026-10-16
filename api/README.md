@@ -10,6 +10,9 @@ FastAPI backend for Proofly.
 - Week 4, Day 6: review a claim (`PATCH /cases/{id}/claims/{type}`) with a reason, and undo it (`DELETE …/review`)
 - Week 4, Day 7: append-only audit log, and `GET /cases/{id}/activity` to read a case's history
 - Week 4, Day 8: `DELETE /cases/{id}` and the purge job (`python -m app.purge`)
+- Week 4, Day 9: `PUT /cases/{id}/decision`
+- Week 4, Day 10: access tests for every case endpoint
+- Week 6, Day 1: evidence-request rules and table (`app/evidence_requests.py`); endpoints on Day 2
 
 ## Audit log
 

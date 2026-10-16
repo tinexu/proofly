@@ -1,17 +1,17 @@
 """Cases (Week 4, Day 5): create, list and view your own cases.
-Day 7 adds each case's activity log.
+Day 7 adds each case's activity log. Day 8 adds deletion.
 
 A case is one sublet offer being checked (S2). Creating a case also creates
 its five claims, all starting at UNCHECKED. The rules engine arrives in Week 7.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Literal
 from urllib.parse import urlparse
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -171,3 +171,30 @@ def case_activity(kase: Case = Depends(owned_case), db: Session = Depends(get_se
         ActivityItem(at=e.created_at, actor=ACTOR[e.actor_type], action=e.action, description=describe(e))
         for e in events
     ]
+
+
+@router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_case(
+    kase: Case = Depends(owned_case),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_session),
+) -> Response:
+    """Delete a case (F07).
+
+    The case disappears at once and its personal details are wiped right away.
+    The purge job (app/purge.py) removes what's left after a short delay.
+    """
+    kase.status = "deleted"
+    kase.deleted_at = datetime.now(timezone.utc)
+    kase.address = "(deleted)"
+    kase.source_url = None
+    kase.contact_handle = None
+    kase.payment_method = None
+    kase.decision_note = None
+    for claim in kase.claims:
+        claim.rationale = None
+        claim.reviewer = "rules"
+        claim.reviewed_by_id = None
+    record(db, "case.deleted", actor_user_id=user.id, case_id=kase.id)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

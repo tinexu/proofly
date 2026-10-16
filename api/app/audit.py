@@ -82,5 +82,9 @@ def describe(event: AuditEvent) -> str:
             return f'Marked "{claim}" as {to_state}'
         case "claim.review_cleared":
             return f'Cleared your review of "{claim}"'
+        case "case.deleted":
+            return "Deleted the case"
+        case "case.purged":
+            return "Permanently removed the case's data"
         case _:
             return event.action.replace(".", " ").replace("_", " ").capitalize()

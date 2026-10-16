@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     session_cookie_name: str = "proofly_session"
     session_ttl_days: int = 14
 
+    # Deletion (Day 8). Personal details are wiped at once; the purge job removes
+    # the rows after this delay (time for uploaded files to be deleted from storage).
+    case_purge_delay_hours: int = 24
+    # Housekeeping: how long used/expired sign-in links and ended sessions are kept.
+    auth_record_retention_days: int = 7
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

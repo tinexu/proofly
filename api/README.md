@@ -9,6 +9,7 @@ FastAPI backend for Proofly.
 - Week 4, Day 5: `POST /cases`, `GET /cases`, `GET /cases/{id}` (signed in, your own cases only)
 - Week 4, Day 6: review a claim (`PATCH /cases/{id}/claims/{type}`) with a reason, and undo it (`DELETE …/review`)
 - Week 4, Day 7: append-only audit log, and `GET /cases/{id}/activity` to read a case's history
+- Week 4, Day 8: `DELETE /cases/{id}` and the purge job (`python -m app.purge`)
 
 ## Audit log
 
@@ -82,3 +83,18 @@ they never touch your dev data. If Postgres isn't running, they're skipped.
 docker compose down          # keeps data
 docker compose down -v       # deletes data too
 ```
+
+## Deleting data
+
+`DELETE /cases/{id}` hides the case at once and wipes its personal details
+(address, link, contact, payment method, notes). The purge job then removes the
+rows for good once `PROOFLY_CASE_PURGE_DELAY_HOURS` (default 24) have passed. It
+also removes sign-in links and sessions that ended more than 7 days ago.
+
+```bash
+python -m app.purge --dry-run   # show what would be removed
+python -m app.purge             # remove it
+```
+
+In production this runs on a schedule (for example hourly). The audit log keeps
+a "case.purged" entry, which holds no personal details.

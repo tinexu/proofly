@@ -34,6 +34,23 @@ app.add_middleware(
 app.include_router(auth.router)
 
 
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def reject_foreign_origins(request: Request, call_next) -> Response:
+    """Extra protection for the session cookie: a page on another site can't change data.
+
+    Browsers send an Origin header on cross-site requests. Requests without one
+    (curl, tests, the API docs on the same origin) are allowed.
+    """
+    origin = request.headers.get("origin")
+    allowed = set(settings.cors_origin_list) | {str(request.base_url).rstrip("/")}
+    if request.method in UNSAFE_METHODS and origin and origin not in allowed:
+        return JSONResponse({"detail": "Request blocked: unexpected origin."}, status_code=403)
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next) -> Response:
     response = await call_next(request)

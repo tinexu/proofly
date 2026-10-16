@@ -5,13 +5,18 @@ FastAPI backend for Proofly.
 - Week 4, Day 1: skeleton, settings, health checks, local Postgres
 - Week 4, Day 2: database tables (users, cases, claims, audit events) and the first migration
 - Week 4, Day 3: email magic-link sign-in (emails print to the terminal in development)
+- Week 4, Day 4: sessions (stay signed in), `/auth/me`, sign-out, owner-only case access
 
 ## Signing in (development)
 
 1. `POST /auth/magic-link` with `{"email": "you@example.edu"}`. The email, including the link, prints in the terminal running uvicorn.
 2. Copy the `token=` value from that link and `POST /auth/verify` with `{"token": "..."}`.
 
-Links work once and expire after 15 minutes. Staying signed in (sessions) arrives on Day 4.
+3. Verifying sets an HttpOnly `proofly_session` cookie that lasts 14 days. `GET /auth/me` shows who's signed in, and `POST /auth/logout` signs that browser out.
+
+Links work once and expire after 15 minutes.
+
+Requests that change data (POST, PATCH, DELETE) from another website are blocked by an Origin check.
 
 ## First-time setup
 

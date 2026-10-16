@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     # "console" prints emails to the terminal. A real provider arrives in Week 8.
     email_backend: str = "console"
 
+    # Sessions (Day 4).
+    session_cookie_name: str = "proofly_session"
+    session_ttl_days: int = 14
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

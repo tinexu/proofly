@@ -1,7 +1,7 @@
 """Database tables (spec section 10).
 
 Day 2: users, cases, claims, audit events. Day 3: login tokens. Day 4: sessions.
-Week 6, Day 1: evidence requests.
+Week 6, Day 1: evidence requests. Day 3: evidence files.
 
 Evidence, evidence requests and uploads arrive in Week 6.
 """
@@ -11,6 +11,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Date,
     DateTime,
@@ -34,6 +35,8 @@ from app.domain import (
     CLAIM_TYPES,
     CLAIMED_ROLES,
     DECISIONS,
+    EVIDENCE_CONTENT_TYPES,
+    EVIDENCE_STATUSES,
     PERMISSION_CLAIMS,
     PLATFORMS,
     check_in,
@@ -263,4 +266,39 @@ class EvidenceRequest(Base):
         CheckConstraint("expires_at > created_at", name="expires_after_created"),
         # Links live at most 7 days (spec: short-lived, scoped access).
         CheckConstraint("expires_at <= created_at + interval '7 days'", name="expires_within_7_days"),
+    )
+
+
+class Evidence(Base):
+    """One uploaded file, for one claim (Week 6, Day 3).
+
+    The file itself lives in private storage under `storage_key` (random, chosen
+    by the API). `original_name` is cleaned and only ever displayed. Files start
+    as `pending_scan` and can't be downloaded until a scan marks them `clean`.
+    """
+
+    __tablename__ = "evidence"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    request_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("evidence_requests.id", ondelete="SET NULL"))
+    claim_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="subletter", server_default="subletter")
+    storage_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    original_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending_scan", server_default="pending_scan")
+    uploaded_at: Mapped[datetime] = _created_at()
+    scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint(check_in("claim_type", CLAIM_TYPES), name="claim_type_valid"),
+        CheckConstraint(check_in("status", EVIDENCE_STATUSES), name="status_valid"),
+        CheckConstraint(check_in("content_type", EVIDENCE_CONTENT_TYPES), name="content_type_valid"),
+        CheckConstraint("source IN ('subletter', 'renter')", name="source_valid"),
+        CheckConstraint("size_bytes > 0 AND size_bytes <= 10485760", name="size_limit"),
     )

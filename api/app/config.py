@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     # Housekeeping: how long used/expired sign-in links and ended sessions are kept.
     auth_record_retention_days: int = 7
 
+    # Evidence file storage (Week 6, Day 3). "local" for development, "s3" for production.
+    storage_backend: str = "local"
+    storage_dir: str = ".storage"
+    s3_bucket: str = "proofly-evidence"
+    s3_region: str = "us-east-1"
+    s3_endpoint_url: str | None = None  # only for S3-compatible services other than AWS
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

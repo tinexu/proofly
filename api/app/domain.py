@@ -32,6 +32,10 @@ CASE_STATUSES = ("active", "deleted")
 
 AUDIT_ACTORS = ("user", "subletter", "rules", "system")
 
+# Uploaded evidence files start locked until a virus scan passes them (Week 6, Day 4).
+EVIDENCE_STATUSES = ("pending_scan", "clean", "infected", "scan_error")
+EVIDENCE_CONTENT_TYPES = ("application/pdf", "image/png", "image/jpeg", "image/webp", "image/heic")
+
 
 def check_in(column: str, values: tuple[str, ...]) -> str:
     """SQL for a CHECK constraint limiting a column to the given values."""

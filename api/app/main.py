@@ -36,6 +36,7 @@ app.include_router(cases.router)
 app.include_router(claims.router)
 app.include_router(evidence_routes.owner_router)
 app.include_router(evidence_routes.public_router)
+app.include_router(evidence_routes.evidence_router)
 
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}

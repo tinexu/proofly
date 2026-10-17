@@ -29,6 +29,7 @@ CASE_ENDPOINTS = [
     ("POST", "/cases/{case_id}/evidence-requests", {"scopes": ["price_and_term"], "expires_in_hours": 72}, 201),
     ("GET", "/cases/{case_id}/evidence-requests", None, 200),
     ("POST", "/cases/{case_id}/evidence-requests/{request_id}/revoke", None, 200),
+    ("GET", "/cases/{case_id}/evidence", None, 200),
 ]
 IDS = [f"{m} {p}" for m, p, _, _ in CASE_ENDPOINTS]
 

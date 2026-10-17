@@ -14,6 +14,7 @@ FastAPI backend for Proofly.
 - Week 4, Day 10: access tests for every case endpoint
 - Week 6, Day 1: evidence-request rules and table (`app/evidence_requests.py`)
 - Week 6, Day 2: evidence-link endpoints for the renter, and `POST /evidence-requests/lookup` for the subletter
+- Week 6, Day 3: file uploads through a link (`POST /evidence-requests/submit`), private storage, `GET /cases/{id}/evidence`
 
 ## Audit log
 
@@ -88,11 +89,22 @@ docker compose down          # keeps data
 docker compose down -v       # deletes data too
 ```
 
+## Evidence files
+
+Files the subletter sends are checked (type from the file's contents, 10 MB max,
+3 per item, 10 in total), stored under a random name in private storage, and
+start **locked** (`pending_scan`). Nobody can download them until a virus scan
+marks them clean (Week 6, Day 4).
+
+- Development: files go in `api/.storage/` (owner-only permissions, ignored by git).
+- Production: `PROOFLY_STORAGE_BACKEND=s3` with `PROOFLY_S3_BUCKET` and the usual
+  AWS credentials. Objects are encrypted at rest. Local storage is refused in production.
+
 ## Deleting data
 
 `DELETE /cases/{id}` hides the case at once and wipes its personal details
 (address, link, contact, payment method, notes). The purge job then removes the
-rows for good once `PROOFLY_CASE_PURGE_DELAY_HOURS` (default 24) have passed. It
+rows and the case's stored files for good once `PROOFLY_CASE_PURGE_DELAY_HOURS` (default 24) have passed. It
 also removes sign-in links and sessions that ended more than 7 days ago.
 
 ```bash

@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 from app.config import get_settings
 from app.db import get_session
 from app.email import get_email_sender
+from app.storage import StorageError, _check_key, get_storage
 from app.main import app
 
 TEST_DB_NAME = "proofly_test"
@@ -77,11 +78,41 @@ def outbox() -> CapturingEmailSender:
     return CapturingEmailSender()
 
 
+class MemoryStorage:
+    """File storage kept in a dict, for tests. Can be told to fail."""
+
+    def __init__(self) -> None:
+        self.files: dict[str, tuple[bytes, str]] = {}
+        self.fail_after: int | None = None  # fail on the Nth put
+        self.puts = 0
+
+    def put(self, key: str, data: bytes, content_type: str) -> None:
+        _check_key(key)
+        self.puts += 1
+        if self.fail_after is not None and self.puts > self.fail_after:
+            raise StorageError("storage is down")
+        self.files[key] = (data, content_type)
+
+    def get(self, key: str) -> bytes:
+        if key not in self.files:
+            raise StorageError("File not found.")
+        return self.files[key][0]
+
+    def delete(self, key: str) -> None:
+        self.files.pop(key, None)
+
+
 @pytest.fixture
-def client(db: Session, outbox: CapturingEmailSender) -> Iterator[TestClient]:
-    """An API client wired to the per-test database session and a fake outbox."""
+def storage() -> MemoryStorage:
+    return MemoryStorage()
+
+
+@pytest.fixture
+def client(db: Session, outbox: CapturingEmailSender, storage: MemoryStorage) -> Iterator[TestClient]:
+    """An API client wired to the per-test database session, a fake outbox and in-memory storage."""
     app.dependency_overrides[get_session] = lambda: db
     app.dependency_overrides[get_email_sender] = lambda: outbox
+    app.dependency_overrides[get_storage] = lambda: storage
     try:
         yield TestClient(app)
     finally:

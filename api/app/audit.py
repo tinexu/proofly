@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.models import AuditEvent
 
 # Keys allowed in `detail`, and nothing else. Values are short codes, never free text.
-ALLOWED_DETAIL_KEYS = {"method", "platform", "claim_type", "from", "to", "decision", "scope_count", "hours"}
+ALLOWED_DETAIL_KEYS = {"method", "platform", "claim_type", "from", "to", "decision", "scope_count", "hours", "file_count"}
 MAX_VALUE_LENGTH = 40
 
 
@@ -97,6 +97,9 @@ def describe(event: AuditEvent) -> str:
             return f"Created an evidence link asking for {n} item{'s' if n != 1 else ''} (expires in {days})"
         case "evidence_request.revoked":
             return "Revoked an evidence link"
+        case "evidence.received":
+            n = d.get("file_count", 0)
+            return f"The subletter sent {n} file{'s' if n != 1 else ''} (locked until checked for viruses)"
         case "case.deleted":
             return "Deleted the case"
         case "case.purged":

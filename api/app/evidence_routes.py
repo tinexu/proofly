@@ -5,8 +5,12 @@ For the renter (signed in, own case only):
   GET  /cases/{case_id}/evidence-requests                        list links and their status
   POST /cases/{case_id}/evidence-requests/{request_id}/revoke    close a link early
 
+  GET  /cases/{case_id}/evidence                                 files received (Week 6, Day 3)
+
 For the subletter (no account):
   POST /evidence-requests/lookup  {token}   what a link asks for, if it's still open
+  POST /evidence-requests/submit  (form)    send files: token, consent, and files named
+                                            after the item they're for (Week 6, Day 3)
 
 The lookup takes the token in the body, not the URL, so it never lands in
 server access logs. Every closed or unknown link gets the same 404, so a link
@@ -17,8 +21,12 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.concurrency import run_in_threadpool
+from starlette.datastructures import UploadFile
+from starlette.formparsers import MultiPartException
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.access import owned_case
@@ -36,10 +44,13 @@ from app.evidence_requests import (
     revoke,
     status_of,
 )
-from app.models import Case, EvidenceRequest, User
+from app.models import Case, Evidence, EvidenceRequest, User
 from app.sessions import current_user
+from app.storage import Storage, StorageError, get_storage
+from app.uploads import MAX_FILE_BYTES, MAX_FILES_TOTAL, IncomingFile, LinkClosed, UploadRejected, receive
 
 owner_router = APIRouter(prefix="/cases/{case_id}/evidence-requests", tags=["evidence requests"])
+evidence_router = APIRouter(prefix="/cases/{case_id}/evidence", tags=["evidence"])
 public_router = APIRouter(prefix="/evidence-requests", tags=["evidence requests (subletter)"])
 
 ClaimType = Literal[CLAIM_TYPES]  # type: ignore[valid-type]
@@ -99,6 +110,26 @@ class PublicRequestOut(BaseModel):
 
     items: list[AskedItem]
     expires_at: datetime
+
+
+class EvidenceOut(BaseModel):
+    """What the renter sees about a file. Never the storage location."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    claim_type: str
+    source: str
+    original_name: str
+    content_type: str
+    size_bytes: int
+    status: Literal["pending_scan", "clean", "infected", "scan_error"]
+    uploaded_at: datetime
+
+
+class SubmitResult(BaseModel):
+    received: int
+    message: str = "Thanks. Your files were sent. This link no longer accepts uploads."
 
 
 def to_out(req: EvidenceRequest) -> RequestOut:
@@ -163,3 +194,44 @@ def lookup(body: TokenBody, db: Session = Depends(get_session)) -> PublicRequest
         items=[AskedItem(type=t, label=CLAIM_LABEL[t], prompt=REQUEST_PROMPTS[t]) for t in req.scopes],
         expires_at=req.expires_at,
     )
+
+
+@public_router.post("/submit", status_code=status.HTTP_201_CREATED, response_model=SubmitResult)
+async def submit(
+    request: Request,
+    db: Session = Depends(get_session),
+    storage: Storage = Depends(get_storage),
+) -> SubmitResult:
+    try:
+        form = await request.form(max_files=MAX_FILES_TOTAL, max_fields=10)
+    except MultiPartException as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Send at most 10 files.") from e
+
+    token = form.get("token")
+    if not isinstance(token, str) or not 20 <= len(token) <= 200:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=LINK_NOT_VALID)
+    consent = form.get("consent") in ("true", "on", "1", "yes")
+
+    files: list[IncomingFile] = []
+    for name, value in form.multi_items():
+        if isinstance(value, UploadFile):
+            data = await value.read(MAX_FILE_BYTES + 1)  # one byte over tells us it's too big
+            files.append(IncomingFile(claim_type=name, filename=value.filename or "", data=data))
+
+    try:
+        rows = await run_in_threadpool(receive, db, storage, token, consent, files)
+    except LinkClosed as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=LINK_NOT_VALID) from e
+    except UploadRejected as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    except StorageError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="We couldn't save your files just now. Nothing was sent; please try again in a few minutes.",
+        ) from e
+    return SubmitResult(received=len(rows))
+
+
+@evidence_router.get("", response_model=list[EvidenceOut])
+def list_evidence(kase: Case = Depends(owned_case), db: Session = Depends(get_session)) -> list[Evidence]:
+    return list(db.scalars(select(Evidence).where(Evidence.case_id == kase.id).order_by(Evidence.uploaded_at.desc())))

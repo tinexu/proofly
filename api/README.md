@@ -16,6 +16,7 @@ FastAPI backend for Proofly.
 - Week 6, Day 2: evidence-link endpoints for the renter, and `POST /evidence-requests/lookup` for the subletter
 - Week 6, Day 3: file uploads through a link (`POST /evidence-requests/submit`), private storage, `GET /cases/{id}/evidence`
 - Week 6, Day 4: virus scanning with ClamAV, and downloading clean files (`GET /cases/{id}/evidence/{evidence_id}/file`)
+- Week 6, Day 5: evidence list includes `request_id` (which link a file came through), for the website
 
 ## Audit log
 

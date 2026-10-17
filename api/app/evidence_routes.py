@@ -122,6 +122,7 @@ class EvidenceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    request_id: UUID | None
     claim_type: str
     source: str
     original_name: str

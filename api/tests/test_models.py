@@ -82,12 +82,12 @@ def test_unknown_claim_type_rejected(db):
 def test_manual_review_requires_rationale(db):
     owner = make_user(db)
     kase = make_case(db, owner)
-    expect_rejected(db, Claim(case_id=kase.id, type="sublet_authorization", state="SUPPORTED", reviewer="user", reviewed_by_id=owner.id))
+    expect_rejected(db, Claim(case_id=kase.id, type="sublet_authorization", state="CONFLICTING", reviewer="user", reviewed_by_id=owner.id))
 
     owner = make_user(db)
     kase = make_case(db, owner)
     ok = Claim(
-        case_id=kase.id, type="sublet_authorization", state="SUPPORTED",
+        case_id=kase.id, type="sublet_authorization", state="CONFLICTING",
         reviewer="user", reviewed_by_id=owner.id, rationale="Called the property office myself.",
     )
     db.add(ok)

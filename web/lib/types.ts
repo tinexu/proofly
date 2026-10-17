@@ -56,6 +56,8 @@ export interface Claim {
   rationale?: string;
   /** "rules" = set by the rules engine; "user" = manual override with provenance. */
   reviewer: "rules" | "user";
+  /** SUPPORTED only: the id of the clean file the renter based it on (Week 7). */
+  supportedBy?: string;
   updatedAt: string;
 }
 

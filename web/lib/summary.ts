@@ -2,7 +2,7 @@
 
 import { CLAIM_TYPES, type Case, type Decision } from "./types";
 import { CLAIM_CONTENT, CORE_DISCLAIMER, EVIDENCE_KIND_LABEL, FACT_LABEL, STATE_LABEL } from "./content";
-import { assertedFor, findDiscrepancies, paymentFlags, unknowns } from "./rules";
+import { assertedFor, findDiscrepancies, paymentFlags, supportingFile, unknowns } from "./rules";
 
 export const DECISION_LABEL: Record<Decision, string> = {
   proceed_independent: "Continue, after confirming with the landlord independently",
@@ -26,9 +26,13 @@ export function buildSummary(c: Case): string {
   lines.push(`## Claims`);
   for (const t of CLAIM_TYPES) {
     const claim = c.claims[t];
+    const file = supportingFile(c, t);
     const ev = c.evidence.filter((e) => claim.evidenceIds.includes(e.id));
-    const basis = ev.length ? ` (based on: ${ev.map((e) => EVIDENCE_KIND_LABEL[e.kind]).join(", ")})` : "";
+    const basis = file
+      ? ` by you, based on "${file.fileName ?? EVIDENCE_KIND_LABEL[file.kind]}"`
+      : ev.length ? ` (files received: ${ev.length})` : "";
     lines.push(`- ${CLAIM_CONTENT[t].label}: ${STATE_LABEL[claim.state]}${basis}`);
+    if (claim.reviewer === "user" && claim.rationale) lines.push(`  - Your note: ${claim.rationale}`);
   }
   const disc = findDiscrepancies(c);
   if (disc.length) {

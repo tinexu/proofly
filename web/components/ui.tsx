@@ -5,7 +5,7 @@ import { useParams, usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Case, Claim, ClaimState, Evidence } from "@/lib/types";
 import { CLAIM_CONTENT, CORE_DISCLAIMER, EVIDENCE_KIND_LABEL, EVIDENCE_SOURCE_LABEL, SCAN_LABEL, STATE_LABEL } from "@/lib/content";
-import { assertedFor, displayStatus } from "@/lib/rules";
+import { assertedFor, displayStatus, supportingFile } from "@/lib/rules";
 import { ApiError, api, caseFromApi, type ApiCase } from "@/lib/api";
 import { RequireAuth } from "@/lib/auth";
 
@@ -56,7 +56,8 @@ export function FileLine({ e }: { e: Evidence }) {
 
 export function ClaimCard({ kase, claim }: { kase: Case; claim: Claim }) {
   const content = CLAIM_CONTENT[claim.type];
-  const evidence = kase.evidence.filter((e) => claim.evidenceIds.includes(e.id));
+  const support = supportingFile(kase, claim.type);
+  const evidence = kase.evidence.filter((e) => claim.evidenceIds.includes(e.id) && e.id !== support?.id);
   return (
     <article className="card claim">
       <header className="claim-head">
@@ -65,11 +66,18 @@ export function ClaimCard({ kase, claim }: { kase: Case; claim: Claim }) {
       </header>
       <p className="muted small">Claimed: {assertedFor(claim.type, kase.offer)}</p>
 
+      {claim.state === "SUPPORTED" && (
+        <div className="supported-by small">
+          <span>Supported by your review of </span>
+          {support ? <FileLine e={support} /> : <span>a file that is no longer available</span>}
+          <p className="muted small">This is your judgement of one file. Proofly hasn&apos;t checked what it says, or whether it&apos;s genuine, current, or about this unit.</p>
+        </div>
+      )}
       {evidence.length > 0 && (
         <ul className="evidence-list">
           {evidence.map((e) => (
             <li key={e.id}>
-              <span>{claim.state === "SUPPORTED" ? "Supported by " : "Evidence: "}</span>
+              <span>{claim.state === "SUPPORTED" ? "Also received: " : "Evidence: "}</span>
               <strong>{EVIDENCE_KIND_LABEL[e.kind]}</strong>
               <span className="muted"> · {EVIDENCE_SOURCE_LABEL[e.source]} · {formatWhen(e.addedAt)}</span>
               {e.scanStatus && <FileLine e={e} />}
@@ -77,7 +85,7 @@ export function ClaimCard({ kase, claim }: { kase: Case; claim: Claim }) {
           ))}
         </ul>
       )}
-      {claim.rationale && <p className="small">{claim.rationale}</p>}
+      {claim.rationale && <p className="small">{claim.reviewer === "user" ? "Your note: " : ""}{claim.rationale}</p>}
       {claim.reviewer === "user" && <p className="muted small">Marked by you on {formatWhen(claim.updatedAt)}.</p>}
       {claim.state !== "SUPPORTED" && <p className="unknown small">{content.unknown}</p>}
     </article>

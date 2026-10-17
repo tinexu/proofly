@@ -2,7 +2,7 @@
 Day 7 adds each case's activity log. Day 8 adds deletion. Day 9 adds saving a decision.
 
 A case is one sublet offer being checked (S2). Creating a case also creates
-its five claims, all starting at UNCHECKED. The rules engine arrives in Week 7.
+its five claims, all starting at UNCHECKED. The rules engine (app/rules.py) then sets what it can.
 """
 
 from datetime import date, datetime, timezone
@@ -86,6 +86,8 @@ class ClaimOut(BaseModel):
     rationale: str | None
     reviewer: str
     reviewed_by_id: UUID | None
+    # Set only when state is SUPPORTED: the file the renter based it on.
+    supporting_evidence_id: UUID | None
     updated_at: datetime
 
 
@@ -219,9 +221,11 @@ def delete_case(
     kase.payment_method = None
     kase.decision_note = None
     for claim in kase.claims:
+        claim.state = "UNCHECKED"
         claim.rationale = None
         claim.reviewer = "rules"
         claim.reviewed_by_id = None
+        claim.supporting_evidence_id = None
     record(db, "case.deleted", actor_user_id=user.id, case_id=kase.id)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

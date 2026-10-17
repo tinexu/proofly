@@ -156,6 +156,8 @@
   .claim-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
   .evidence-list { list-style: none; padding: 0; font-size: 0.9rem; }
   .unknown { color: var(--muted); font-style: italic; }
+  .supported-by { border-left: 3px solid var(--supported); padding: 4px 0 4px 10px; margin: 8px 0; }
+  .supported-by p { margin: 4px 0 0; }
   
   .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .compare > div { background: var(--surface-subtle); border-radius: 8px; padding: 10px; overflow-wrap: anywhere; }

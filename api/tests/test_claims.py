@@ -69,7 +69,7 @@ def test_supported_needs_evidence(client, outbox):
     _, case_id = new_case(client, outbox)
     res = review(client, case_id, state="SUPPORTED", rationale="Looks fine to me.")
     assert res.status_code == 422
-    assert "naming the evidence" in res.json()["detail"]
+    assert "always names the evidence" in res.json()["detail"]
     assert claim_of(client.get(f"/cases/{case_id}").json(), "price_and_term")["state"] == "UNCHECKED"
 
 

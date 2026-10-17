@@ -18,6 +18,7 @@ FastAPI backend for Proofly.
 - Week 6, Day 4: virus scanning with ClamAV, and downloading clean files (`GET /cases/{id}/evidence/{evidence_id}/file`)
 - Week 6, Day 5: evidence list includes `request_id` (which link a file came through), for the website
 - Week 7, Day 1: rules engine (`app/rules.py`): payment flag, evidence received, undo hands back to the rules
+- Week 7, Day 2: "supported" reviews name a clean file from the case (`evidence_id`), enforced in the database too (migration 0007)
 
 ## Audit log
 
@@ -101,7 +102,11 @@ docker compose down -v       # deletes data too
 2. a claim with evidence that wasn't blocked by the virus check → **evidence received**
 3. otherwise → **not checked yet**
 
-Rules never mark a claim "supported", and a manual review always wins. Undoing a
+Rules never mark a claim "supported", and a manual review always wins.
+Only the renter can mark a claim supported: `PATCH /cases/{id}/claims/{type}` with
+`{"state": "SUPPORTED", "rationale": "...", "evidence_id": "<a clean file from this case>"}`.
+Any clean file from the case can be named (a lease page may support more than one
+claim). The database refuses a "supported" claim without a file, or set by the rules. Undoing a
 review hands the claim back to the rules. Changes show in the activity log as "Proofly marked …".
 
 ## Evidence files

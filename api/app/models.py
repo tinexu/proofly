@@ -151,6 +151,10 @@ class Claim(Base):
     reviewer: Mapped[str] = mapped_column(String(8), nullable=False, default="rules", server_default="rules")
     # Set when reviewer = 'user', so every manual decision has provenance.
     reviewed_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    # The file a "supported" review is based on (Week 7, Day 2). Always a clean file from the same case.
+    supporting_evidence_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("evidence.id", ondelete="SET NULL")
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
@@ -164,6 +168,11 @@ class Claim(Base):
         CheckConstraint(check_in("reviewer", CLAIM_REVIEWERS), name="reviewer_valid"),
         # A manual review always records a reason (spec: explainable, auditable).
         CheckConstraint("reviewer = 'rules' OR rationale IS NOT NULL", name="user_review_has_rationale"),
+        # "Supported" is only ever set by a person, and always names the evidence behind it (spec section 08).
+        CheckConstraint(
+            "(state = 'SUPPORTED') = (supporting_evidence_id IS NOT NULL)", name="supported_names_evidence"
+        ),
+        CheckConstraint("state <> 'SUPPORTED' OR reviewer = 'user'", name="supported_is_manual"),
     )
 
 

@@ -5,6 +5,7 @@ Screens S1–S6 from the Proofly product spec (v0.1), running on the Proofly API
 - **S4** creates scoped, expiring links (shown once), lists them, and revokes them.
 - `/r/<token>` is the subletter's page: no account, only the items asked for, sensitive-data warning, consent, PDF/photo checks before sending.
 - **S3/S5** list received files with their virus-check status; clean files download.
+- **S5** (Week 7) can mark a claim **Supported** by choosing a clean file and saying what in it supports the claim. S3 and S6 show which file, and what that file still can't confirm.
 
 ## Run it
 

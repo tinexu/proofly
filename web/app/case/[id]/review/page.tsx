@@ -2,7 +2,8 @@
 
 // S5 / Compare & review: claimed vs provided, manual assessment with provenance
 // (saved to the API), and how to check independently.
-// Mismatch handling returns in Week 7, once evidence (Week 6) can disagree with the listing.
+// Week 7, Day 2: "Supported" names a clean file and says what in it supports the claim.
+// Mismatch handling returns in Week 7, Day 3.
 import { useState } from "react";
 import { CLAIM_TYPES, type Case, type ClaimType, type EvidenceKind } from "@/lib/types";
 import { CLAIM_CONTENT, EVIDENCE_KIND_LABEL, SIGNALS } from "@/lib/content";
@@ -12,7 +13,13 @@ import { CaseShell, FileLine, Notice, StatusBadge, formatWhen, type CaseContext 
 
 function AssessClaim({ kase, type, ctx }: { kase: Case; type: ClaimType; ctx: CaseContext }) {
   const claim = kase.claims[type];
-  const [state, setState] = useState<ReviewState>(claim.state === "CONFLICTING" ? "CONFLICTING" : "REVIEW_NEEDED");
+  // Files that can back a "supported" review: clean ones from this case, this claim's own first.
+  const usable = kase.evidence
+    .filter((e) => e.scanStatus === "clean")
+    .sort((a, b) => Number(b.claimTypes.includes(type)) - Number(a.claimTypes.includes(type)));
+  const initial: ReviewState = claim.state === "SUPPORTED" || claim.state === "CONFLICTING" ? claim.state : "REVIEW_NEEDED";
+  const [state, setState] = useState<ReviewState>(initial);
+  const [fileId, setFileId] = useState(claim.supportedBy ?? usable[0]?.id ?? "");
   const [rationale, setRationale] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -31,12 +38,22 @@ function AssessClaim({ kase, type, ctx }: { kase: Case; type: ClaimType; ctx: Ca
   }
 
   function save() {
-    if (!rationale.trim()) {
-      setError("Add a short note on why, so the decision has a record.");
+    if (state === "SUPPORTED" && !fileId) {
+      setError("Choose the file this is based on.");
       return;
     }
-    void run(() => api.reviewClaim(kase.id, type, state, rationale.trim()));
+    if (!rationale.trim()) {
+      setError(state === "SUPPORTED"
+        ? "Say what in the file supports this, e.g. which page or line."
+        : "Add a short note on why, so the decision has a record.");
+      return;
+    }
+    void run(() => api.reviewClaim(kase.id, type, state, rationale.trim(), state === "SUPPORTED" ? fileId : undefined));
   }
+
+  const placeholder = state === "SUPPORTED"
+    ? "e.g. Page 3 of the lease names this person as a tenant of this unit."
+    : "e.g. The landlord's office hasn't replied yet.";
 
   return (
     <details className="assess">
@@ -46,13 +63,34 @@ function AssessClaim({ kase, type, ctx }: { kase: Case; type: ClaimType; ctx: Ca
           <p className="small">Your note ({formatWhen(claim.updatedAt)}): {claim.rationale}</p>
         )}
         <label htmlFor={`state-${type}`}>Your assessment</label>
-        <select id={`state-${type}`} value={state} onChange={(e) => setState(e.target.value as ReviewState)}>
+        <select id={`state-${type}`} value={state} onChange={(e) => { setState(e.target.value as ReviewState); setError(""); }}>
           <option value="REVIEW_NEEDED">Still not confirmed</option>
+          <option value="SUPPORTED" disabled={usable.length === 0}>
+            Supported by a file{usable.length === 0 ? " (needs a file that passed the virus check)" : ""}
+          </option>
           <option value="CONFLICTING">Conflicting</option>
         </select>
-        <p className="small muted">&quot;Supported&quot; always has to name the evidence behind it. That becomes possible once evidence can be added.</p>
-        <label htmlFor={`why-${type}`}>Why? (saved with this claim, not shared)</label>
-        <textarea id={`why-${type}`} rows={2} maxLength={1000} value={rationale} onChange={(e) => setRationale(e.target.value)} placeholder="e.g. The landlord's office hasn't replied yet." />
+        {usable.length === 0 && (
+          <p className="small muted">&quot;Supported&quot; always names the file behind it. Request evidence first; once a file passes the virus check you can choose it here.</p>
+        )}
+        {state === "SUPPORTED" && usable.length > 0 && (
+          <>
+            <label htmlFor={`file-${type}`}>Which file is this based on?</label>
+            <select id={`file-${type}`} value={fileId} onChange={(e) => setFileId(e.target.value)}>
+              {usable.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.fileName}{e.claimTypes.includes(type) ? "" : ` (sent for "${CLAIM_CONTENT[e.claimTypes[0]].label}")`}
+                </option>
+              ))}
+            </select>
+            <Notice>
+              Only mark this supported if you opened the file and it shows the claim. Proofly hasn&apos;t checked the
+              file, and a file can&apos;t show on its own whether it&apos;s genuine, current, or about this unit.
+            </Notice>
+          </>
+        )}
+        <label htmlFor={`why-${type}`}>{state === "SUPPORTED" ? "What in the file supports it?" : "Why?"} (saved with this claim, not shared)</label>
+        <textarea id={`why-${type}`} rows={2} maxLength={1000} value={rationale} onChange={(e) => setRationale(e.target.value)} placeholder={placeholder} />
         {error && <p className="error small" role="alert">{error}</p>}
         <div className="row">
           <button className="button secondary" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save review"}</button>

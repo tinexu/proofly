@@ -69,6 +69,8 @@ export interface ApiClaim {
   rationale: string | null;
   reviewer: "rules" | "user";
   reviewed_by_id: string | null;
+  /** Set only when state is SUPPORTED: the file the renter based it on. */
+  supporting_evidence_id: string | null;
   updated_at: string;
 }
 
@@ -140,8 +142,8 @@ export interface PublicRequest {
   expires_at: string;
 }
 
-/** States a renter may set by hand. "Supported" (naming the evidence behind it) arrives in Week 7. */
-export type ReviewState = "REVIEW_NEEDED" | "CONFLICTING";
+/** States a renter may set by hand. "Supported" always names a clean file (evidenceId). */
+export type ReviewState = "REVIEW_NEEDED" | "SUPPORTED" | "CONFLICTING";
 
 // ---------------------------------------------------------------------------
 // Endpoints
@@ -179,8 +181,9 @@ export const api = {
     return upload<{ received: number; message: string }>("/evidence-requests/submit", form);
   },
 
-  reviewClaim: (id: string, type: ClaimType, state: ReviewState, rationale: string) =>
-    request<ApiCase>("PATCH", `/cases/${encodeURIComponent(id)}/claims/${type}`, { state, rationale }),
+  reviewClaim: (id: string, type: ClaimType, state: ReviewState, rationale: string, evidenceId?: string) =>
+    request<ApiCase>("PATCH", `/cases/${encodeURIComponent(id)}/claims/${type}`,
+      state === "SUPPORTED" ? { state, rationale, evidence_id: evidenceId } : { state, rationale }),
   clearReview: (id: string, type: ClaimType) =>
     request<ApiCase>("DELETE", `/cases/${encodeURIComponent(id)}/claims/${type}/review`),
 };
@@ -270,6 +273,7 @@ export function caseFromApi(
           evidenceIds: evidence.filter((e) => e.claimTypes.includes(t)).map((e) => e.id),
           rationale: cl?.rationale ?? undefined,
           reviewer: cl?.reviewer ?? "rules",
+          supportedBy: cl?.supporting_evidence_id ?? undefined,
           updatedAt: cl?.updated_at ?? c.created_at,
         }];
       }),

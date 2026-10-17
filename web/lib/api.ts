@@ -1,7 +1,7 @@
 // Talks to the Proofly API (Week 4, Day 9). The session cookie is HttpOnly, so this
 // code never sees it; `credentials: "include"` makes the browser send it.
 
-import { CLAIM_TYPES, type Case, type ClaimState, type ClaimType, type ClaimedRole, type Decision, type Offer, type PermissionClaim, type Platform } from "./types";
+import { CLAIM_TYPES, type Case, type ClaimState, type ClaimType, type ClaimedRole, type Decision, type Evidence, type EvidenceRequest, type Offer, type PermissionClaim, type Platform, type ScanStatus } from "./types";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
@@ -37,6 +37,19 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new ApiError(0, messageFrom(0, null));
   }
   if (res.status === 204) return undefined as T;
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, data));
+  return data as T;
+}
+
+/** For file uploads: the browser sets the multipart Content-Type itself. */
+async function upload<T>(path: string, form: FormData): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { method: "POST", credentials: "omit", body: form });
+  } catch {
+    throw new ApiError(0, messageFrom(0, null));
+  }
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, data));
   return data as T;
@@ -92,7 +105,42 @@ export interface ApiActivity {
   description: string;
 }
 
-/** States a renter may set by hand. "Supported" needs evidence, which arrives in Week 6. */
+export type RequestStatus = "open" | "responded" | "expired" | "revoked";
+
+export interface ApiRequest {
+  id: string;
+  scopes: ClaimType[];
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  responded_at: string | null;
+  status: RequestStatus;
+}
+
+export interface ApiRequestCreated extends ApiRequest {
+  /** Shown only once, right after creating. */
+  link: string;
+}
+
+export interface ApiEvidence {
+  id: string;
+  request_id: string | null;
+  claim_type: ClaimType;
+  source: "subletter" | "renter";
+  original_name: string;
+  content_type: string;
+  size_bytes: number;
+  status: ScanStatus;
+  uploaded_at: string;
+}
+
+/** What the subletter sees for a link. */
+export interface PublicRequest {
+  items: { type: ClaimType; label: string; prompt: string }[];
+  expires_at: string;
+}
+
+/** States a renter may set by hand. "Supported" (naming the evidence behind it) arrives in Week 7. */
 export type ReviewState = "REVIEW_NEEDED" | "CONFLICTING";
 
 // ---------------------------------------------------------------------------
@@ -111,6 +159,25 @@ export const api = {
   deleteCase: (id: string) => request<void>("DELETE", `/cases/${encodeURIComponent(id)}`),
   setDecision: (id: string, decision: Decision | null, note: string) =>
     request<ApiCase>("PUT", `/cases/${encodeURIComponent(id)}/decision`, { decision, decision_note: note || null }),
+
+  createRequest: (id: string, scopes: ClaimType[], hours: number) =>
+    request<ApiRequestCreated>("POST", `/cases/${encodeURIComponent(id)}/evidence-requests`, { scopes, expires_in_hours: hours }),
+  listRequests: (id: string) => request<ApiRequest[]>("GET", `/cases/${encodeURIComponent(id)}/evidence-requests`),
+  revokeRequest: (id: string, requestId: string) =>
+    request<ApiRequest>("POST", `/cases/${encodeURIComponent(id)}/evidence-requests/${encodeURIComponent(requestId)}/revoke`),
+  listEvidence: (id: string) => request<ApiEvidence[]>("GET", `/cases/${encodeURIComponent(id)}/evidence`),
+  fileUrl: (id: string, evidenceId: string) =>
+    `${API_URL}/cases/${encodeURIComponent(id)}/evidence/${encodeURIComponent(evidenceId)}/file`,
+
+  // Subletter side: no account, no cookies. The token goes in the body, never the API URL.
+  lookupLink: (token: string) => request<PublicRequest>("POST", "/evidence-requests/lookup", { token }),
+  submitEvidence: (token: string, files: { type: ClaimType; file: File }[]) => {
+    const form = new FormData();
+    form.append("token", token);
+    form.append("consent", "true");
+    for (const { type, file } of files) form.append(type, file, file.name);
+    return upload<{ received: number; message: string }>("/evidence-requests/submit", form);
+  },
 
   reviewClaim: (id: string, type: ClaimType, state: ReviewState, rationale: string) =>
     request<ApiCase>("PATCH", `/cases/${encodeURIComponent(id)}/claims/${type}`, { state, rationale }),
@@ -141,8 +208,42 @@ export function offerToApi(o: Offer) {
 
 const money = (v: string | null) => (v ? String(Number(v)) : "");
 
-export function caseFromApi(c: ApiCase, activity: ApiActivity[] = []): Case {
+function evidenceFromApi(caseId: string, e: ApiEvidence): Evidence {
+  return {
+    id: e.id,
+    kind: "uploaded_file",
+    source: e.source,
+    description: e.original_name,
+    claimTypes: [e.claim_type],
+    addedAt: e.uploaded_at,
+    fileName: e.original_name,
+    scanStatus: e.status,
+    sizeBytes: e.size_bytes,
+    requestId: e.request_id ?? undefined,
+    downloadUrl: e.status === "clean" ? api.fileUrl(caseId, e.id) : undefined,
+  };
+}
+
+function requestFromApi(r: ApiRequest): EvidenceRequest {
+  return {
+    id: r.id,
+    token: "", // never stored or shown again after creation
+    scopes: r.scopes,
+    createdAt: r.created_at,
+    expiresAt: r.expires_at,
+    revokedAt: r.revoked_at ?? undefined,
+    respondedAt: r.responded_at ?? undefined,
+  };
+}
+
+export function caseFromApi(
+  c: ApiCase,
+  activity: ApiActivity[] = [],
+  files: ApiEvidence[] = [],
+  links: ApiRequest[] = [],
+): Case {
   const byType = new Map(c.claims.map((cl) => [cl.type, cl]));
+  const evidence = files.map((f) => evidenceFromApi(c.id, f));
   return {
     id: c.id,
     createdAt: c.created_at,
@@ -166,17 +267,16 @@ export function caseFromApi(c: ApiCase, activity: ApiActivity[] = []): Case {
         return [t, {
           type: t,
           state: cl?.state ?? "UNCHECKED",
-          evidenceIds: [],
+          evidenceIds: evidence.filter((e) => e.claimTypes.includes(t)).map((e) => e.id),
           rationale: cl?.rationale ?? undefined,
           reviewer: cl?.reviewer ?? "rules",
           updatedAt: cl?.updated_at ?? c.created_at,
         }];
       }),
     ) as unknown as Case["claims"],
-    // Evidence and evidence requests arrive in Week 6.
-    evidence: [],
+    evidence,
     providedFacts: {},
-    requests: [],
+    requests: links.map(requestFromApi),
     decision: c.decision ?? undefined,
     decisionNote: c.decision_note ?? undefined,
     events: activity.map((a, i) => ({ id: `${a.at}-${i}`, at: a.at, actor: a.actor, action: a.description })),

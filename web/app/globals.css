@@ -172,3 +172,13 @@
   
   .danger-zone { border-color: var(--border); }
   .disclaimer { color: var(--muted); border-top: 1px solid var(--border); padding-top: 12px; }
+  
+  /* Uploaded files (Week 6) */
+  .file-line { margin-top: 2px; overflow-wrap: anywhere; }
+  .scan-clean { color: var(--supported); }
+  .scan-pending_scan, .scan-scan_error { color: var(--muted); }
+  .scan-infected { color: var(--conflicting); font-weight: 600; }
+  .status-pill { display: inline-block; font-size: 0.8rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--unresolved-bg); color: var(--unresolved); }
+  .status-open { background: var(--supported-bg); color: var(--supported); }
+  .link-once { border: 2px solid var(--accent); }
+  .drop { border: 1px dashed var(--border); border-radius: 8px; padding: 12px; }

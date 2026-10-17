@@ -26,9 +26,12 @@ export type EvidenceKind =
   | "lease_excerpt"
   | "manager_confirmation"
   | "live_tour"
-  | "message_screenshot";
+  | "message_screenshot"
+  | "uploaded_file";
 
 export type EvidenceSource = "public_record" | "subletter" | "renter" | "independent_contact";
+
+export type ScanStatus = "pending_scan" | "clean" | "infected" | "scan_error";
 
 export interface Evidence {
   id: string;
@@ -38,6 +41,12 @@ export interface Evidence {
   claimTypes: ClaimType[];
   addedAt: string;
   fileName?: string;
+  /** Uploaded files only (Week 6): virus-check status and where to download it once clean. */
+  scanStatus?: ScanStatus;
+  downloadUrl?: string;
+  sizeBytes?: number;
+  /** The evidence link it came through, if any. */
+  requestId?: string;
 }
 
 export interface Claim {

@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { Case, Claim, ClaimState } from "@/lib/types";
-import { CLAIM_CONTENT, CORE_DISCLAIMER, EVIDENCE_KIND_LABEL, EVIDENCE_SOURCE_LABEL, STATE_LABEL } from "@/lib/content";
+import type { Case, Claim, ClaimState, Evidence } from "@/lib/types";
+import { CLAIM_CONTENT, CORE_DISCLAIMER, EVIDENCE_KIND_LABEL, EVIDENCE_SOURCE_LABEL, SCAN_LABEL, STATE_LABEL } from "@/lib/content";
 import { assertedFor, displayStatus } from "@/lib/rules";
 import { ApiError, api, caseFromApi, type ApiCase } from "@/lib/api";
 import { RequireAuth } from "@/lib/auth";
@@ -33,6 +33,27 @@ export function Notice({ tone = "neutral", title, children }: { tone?: "neutral"
   );
 }
 
+function formatSize(bytes?: number) {
+  if (!bytes) return "";
+  return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** One uploaded file: its name, virus-check status, and a download link once it's clean. */
+export function FileLine({ e }: { e: Evidence }) {
+  if (!e.scanStatus) return null;
+  return (
+    <span className="file-line small block">
+      {e.downloadUrl ? (
+        <a href={e.downloadUrl} rel="noopener noreferrer">{e.fileName}</a>
+      ) : (
+        <span>{e.fileName}</span>
+      )}
+      <span className="muted"> · {formatSize(e.sizeBytes)} · </span>
+      <span className={`scan scan-${e.scanStatus}`}>{SCAN_LABEL[e.scanStatus]}</span>
+    </span>
+  );
+}
+
 export function ClaimCard({ kase, claim }: { kase: Case; claim: Claim }) {
   const content = CLAIM_CONTENT[claim.type];
   const evidence = kase.evidence.filter((e) => claim.evidenceIds.includes(e.id));
@@ -51,6 +72,7 @@ export function ClaimCard({ kase, claim }: { kase: Case; claim: Claim }) {
               <span>{claim.state === "SUPPORTED" ? "Supported by " : "Evidence: "}</span>
               <strong>{EVIDENCE_KIND_LABEL[e.kind]}</strong>
               <span className="muted"> · {EVIDENCE_SOURCE_LABEL[e.source]} · {formatWhen(e.addedAt)}</span>
+              {e.scanStatus && <FileLine e={e} />}
             </li>
           ))}
         </ul>
@@ -83,8 +105,13 @@ function LoadedCase({ id, children }: { id: string; children: (kase: Case, ctx: 
 
   const load = useCallback(async (fresh?: ApiCase) => {
     try {
-      const [c, activity] = await Promise.all([fresh ? Promise.resolve(fresh) : api.getCase(id), api.activity(id)]);
-      setKase(caseFromApi(c, activity));
+      const [c, activity, files, links] = await Promise.all([
+        fresh ? Promise.resolve(fresh) : api.getCase(id),
+        api.activity(id),
+        api.listEvidence(id),
+        api.listRequests(id),
+      ]);
+      setKase(caseFromApi(c, activity, files, links));
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError ? { status: e.status, message: e.message } : { status: 0, message: String(e) });

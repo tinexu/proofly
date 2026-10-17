@@ -8,7 +8,7 @@ import { CLAIM_TYPES, type Case, type ClaimType, type EvidenceKind } from "@/lib
 import { CLAIM_CONTENT, EVIDENCE_KIND_LABEL, SIGNALS } from "@/lib/content";
 import { assertedFor, evidenceFor } from "@/lib/rules";
 import { api, type ReviewState } from "@/lib/api";
-import { CaseShell, Notice, StatusBadge, formatWhen, type CaseContext } from "@/components/ui";
+import { CaseShell, FileLine, Notice, StatusBadge, formatWhen, type CaseContext } from "@/components/ui";
 
 function AssessClaim({ kase, type, ctx }: { kase: Case; type: ClaimType; ctx: CaseContext }) {
   const claim = kase.claims[type];
@@ -70,7 +70,11 @@ function ReviewPanel({ kase, ctx }: { kase: Case; ctx: CaseContext }) {
     <>
       <section className="stack">
         <h2>Mismatches</h2>
-        <p className="muted">No evidence has been received, so there&apos;s nothing to compare yet. That doesn&apos;t mean everything checks out.</p>
+        {kase.evidence.length === 0 ? (
+          <p className="muted">No evidence has been received, so there&apos;s nothing to compare yet. That doesn&apos;t mean everything checks out.</p>
+        ) : (
+          <p className="muted">Proofly doesn&apos;t read files yet, so it can&apos;t spot mismatches for you. Open each file and compare it with the claim yourself, then record your review below.</p>
+        )}
       </section>
 
       <section className="stack">
@@ -82,7 +86,10 @@ function ReviewPanel({ kase, ctx }: { kase: Case; ctx: CaseContext }) {
               <div className="claim-head"><h3>{CLAIM_CONTENT[t].label}</h3><StatusBadge state={kase.claims[t].state} /></div>
               <div className="compare">
                 <div><span className="muted small block">Claimed</span>{assertedFor(t, kase.offer)}</div>
-                <div><span className="muted small block">Provided</span>{ev.length ? ev.map((e) => EVIDENCE_KIND_LABEL[e.kind]).join(", ") : "Nothing yet"}</div>
+                <div>
+                  <span className="muted small block">Provided</span>
+                  {ev.length ? ev.map((e) => (e.scanStatus ? <FileLine key={e.id} e={e} /> : <span key={e.id} className="block">{EVIDENCE_KIND_LABEL[e.kind]}</span>)) : "Nothing yet"}
+                </div>
               </div>
               <div>
                 <strong className="small">How to check independently</strong>

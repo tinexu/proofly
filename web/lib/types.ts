@@ -92,11 +92,15 @@ export const FACT_FIELDS = [
 ] as const;
 export type FactField = (typeof FACT_FIELDS)[number];
 
+/** What a file says about one offer detail, noted by the renter (Week 7). Compared by the API. */
 export interface ProvidedFact {
+  /** Canonical: money like "1200.00", dates as YYYY-MM-DD. */
   value: string;
   evidenceId: string;
-  /** Renter reviewed the mismatch and chose to keep the listing value. */
-  acknowledged?: boolean;
+  /** The listing's value, or undefined if the listing didn't say. */
+  listed?: string;
+  result: "matches" | "differs" | "listing_silent";
+  updatedAt: string;
 }
 
 export interface EvidenceRequest {

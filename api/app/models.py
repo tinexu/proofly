@@ -37,6 +37,7 @@ from app.domain import (
     DECISIONS,
     EVIDENCE_CONTENT_TYPES,
     EVIDENCE_STATUSES,
+    FACT_FIELDS,
     PERMISSION_CLAIMS,
     PLATFORMS,
     check_in,
@@ -310,4 +311,35 @@ class Evidence(Base):
         CheckConstraint(check_in("content_type", EVIDENCE_CONTENT_TYPES), name="content_type_valid"),
         CheckConstraint("source IN ('subletter', 'renter')", name="source_valid"),
         CheckConstraint("size_bytes > 0 AND size_bytes <= 10485760", name="size_limit"),
+    )
+
+
+class CaseFact(Base):
+    """What a file says about one detail of the offer (Week 7, Day 3).
+
+    Proofly doesn't read files. The renter opens a file and notes what it says
+    (say, the rent on the lease), naming the file. The API compares it with the
+    listing; a difference marks the related claim "conflicting" (app/rules.py).
+    One fact per field per case; recording it again replaces it.
+    """
+
+    __tablename__ = "case_facts"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    field: Mapped[str] = mapped_column(String(16), nullable=False)
+    # Canonical text: money as "1200.00", dates as "2026-06-01", other fields as typed.
+    value: Mapped[str] = mapped_column(String(200), nullable=False)
+    evidence_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("evidence.id", ondelete="CASCADE"), nullable=False
+    )
+    recorded_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    updated_at: Mapped[datetime] = _created_at()
+
+    __table_args__ = (
+        UniqueConstraint("case_id", "field", name="uq_case_facts_case_id_field"),
+        CheckConstraint(check_in("field", FACT_FIELDS), name="field_valid"),
+        CheckConstraint("length(value) BETWEEN 1 AND 200", name="value_length"),
     )

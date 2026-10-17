@@ -1,6 +1,6 @@
 "use client";
 
-// S6 / Decision summary: next steps, what is not verified, export (F06), report, delete (F07).
+// S6 / Decision summary: next steps, what is NOT verified, export (F06), report, delete (F07).
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CLAIM_TYPES, type Case, type Decision } from "@/lib/types";
@@ -68,7 +68,7 @@ function SummaryPanel({ kase, ctx }: { kase: Case; ctx: CaseContext }) {
         {(disc.length > 0 || flags.length > 0) && (
           <Notice tone="caution" title="Open issues">
             <ul>
-              {disc.map((d) => <li key={d.field}>{FACT_LABEL[d.field]} in the evidence differs from the listing.</li>)}
+              {disc.map((d) => <li key={d.field}>{FACT_LABEL[d.field]}: a file says something different from the listing.</li>)}
               {flags.map((f) => <li key={f.message}>{f.message}</li>)}
             </ul>
           </Notice>

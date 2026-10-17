@@ -1,7 +1,7 @@
 // Talks to the Proofly API (Week 4, Day 9). The session cookie is HttpOnly, so this
 // code never sees it; `credentials: "include"` makes the browser send it.
 
-import { CLAIM_TYPES, type Case, type ClaimState, type ClaimType, type ClaimedRole, type Decision, type Evidence, type EvidenceRequest, type Offer, type PermissionClaim, type Platform, type ScanStatus } from "./types";
+import { CLAIM_TYPES, type Case, type ClaimState, type ClaimType, type ClaimedRole, type Decision, type Evidence, type EvidenceRequest, type FactField, type Offer, type PermissionClaim, type Platform, type ScanStatus } from "./types";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
@@ -136,6 +136,29 @@ export interface ApiEvidence {
   uploaded_at: string;
 }
 
+export type ApiFactField = "address" | "start_date" | "end_date" | "monthly_rent" | "deposit" | "payment_method";
+
+/** What a file says about one offer detail, with the API's comparison against the listing. */
+export interface ApiFact {
+  field: ApiFactField;
+  claim_type: ClaimType;
+  value: string;
+  listed: string | null;
+  result: "matches" | "differs" | "listing_silent";
+  evidence_id: string;
+  updated_at: string;
+}
+
+export const FACT_TO_API: Record<FactField, ApiFactField> = {
+  address: "address",
+  startDate: "start_date",
+  endDate: "end_date",
+  monthlyRent: "monthly_rent",
+  deposit: "deposit",
+  paymentMethod: "payment_method",
+};
+const FACT_FROM_API = Object.fromEntries(Object.entries(FACT_TO_API).map(([k, v]) => [v, k])) as Record<ApiFactField, FactField>;
+
 /** What the subletter sees for a link. */
 export interface PublicRequest {
   items: { type: ClaimType; label: string; prompt: string }[];
@@ -186,6 +209,12 @@ export const api = {
       state === "SUPPORTED" ? { state, rationale, evidence_id: evidenceId } : { state, rationale }),
   clearReview: (id: string, type: ClaimType) =>
     request<ApiCase>("DELETE", `/cases/${encodeURIComponent(id)}/claims/${type}/review`),
+
+  listFacts: (id: string) => request<ApiFact[]>("GET", `/cases/${encodeURIComponent(id)}/facts`),
+  putFact: (id: string, field: FactField, value: string, evidenceId: string) =>
+    request<ApiFact>("PUT", `/cases/${encodeURIComponent(id)}/facts/${FACT_TO_API[field]}`, { value, evidence_id: evidenceId }),
+  removeFact: (id: string, field: FactField) =>
+    request<void>("DELETE", `/cases/${encodeURIComponent(id)}/facts/${FACT_TO_API[field]}`),
 };
 
 // ---------------------------------------------------------------------------
@@ -244,6 +273,7 @@ export function caseFromApi(
   activity: ApiActivity[] = [],
   files: ApiEvidence[] = [],
   links: ApiRequest[] = [],
+  facts: ApiFact[] = [],
 ): Case {
   const byType = new Map(c.claims.map((cl) => [cl.type, cl]));
   const evidence = files.map((f) => evidenceFromApi(c.id, f));
@@ -279,7 +309,15 @@ export function caseFromApi(
       }),
     ) as unknown as Case["claims"],
     evidence,
-    providedFacts: {},
+    providedFacts: Object.fromEntries(
+      facts.map((f) => [FACT_FROM_API[f.field], {
+        value: f.value,
+        evidenceId: f.evidence_id,
+        listed: f.listed ?? undefined,
+        result: f.result,
+        updatedAt: f.updated_at,
+      }]),
+    ),
     requests: links.map(requestFromApi),
     decision: c.decision ?? undefined,
     decisionNote: c.decision_note ?? undefined,

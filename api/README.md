@@ -19,6 +19,7 @@ FastAPI backend for Proofly.
 - Week 6, Day 5: evidence list includes `request_id` (which link a file came through), for the website
 - Week 7, Day 1: rules engine (`app/rules.py`): payment flag, evidence received, undo hands back to the rules
 - Week 7, Day 2: "supported" reviews name a clean file from the case (`evidence_id`), enforced in the database too (migration 0007)
+- Week 7, Day 3: facts from files (`/cases/{id}/facts`) compared with the listing; a difference marks the claim conflicting (migration 0008)
 
 ## Audit log
 
@@ -97,10 +98,11 @@ docker compose down -v       # deletes data too
 
 `app/rules.py` sets claims the renter hasn't reviewed by hand. Every rule is explicit:
 
-1. "Where the money goes" + a hard-to-reverse payment method (Zelle, Venmo, Cash App,
+1. a file says something different from the listing (see "Facts" below) → **conflicting**
+2. "Where the money goes" + a hard-to-reverse payment method (Zelle, Venmo, Cash App,
    wire, gift cards, crypto) → **needs review**, with a neutral explanation
-2. a claim with evidence that wasn't blocked by the virus check → **evidence received**
-3. otherwise → **not checked yet**
+3. a claim with evidence that wasn't blocked by the virus check → **evidence received**
+4. otherwise → **not checked yet**
 
 Rules never mark a claim "supported", and a manual review always wins.
 Only the renter can mark a claim supported: `PATCH /cases/{id}/claims/{type}` with
@@ -108,6 +110,17 @@ Only the renter can mark a claim supported: `PATCH /cases/{id}/claims/{type}` wi
 Any clean file from the case can be named (a lease page may support more than one
 claim). The database refuses a "supported" claim without a file, or set by the rules. Undoing a
 review hands the claim back to the rules. Changes show in the activity log as "Proofly marked …".
+
+## Facts: listing vs. files
+
+Proofly doesn't read files. The renter opens one and notes what it says about the
+address, move-in/out dates, rent, deposit or payment details:
+`PUT /cases/{id}/facts/{field}` with `{"value": "...", "evidence_id": "<a clean file>"}`.
+`app/facts.py` compares it with the listing: amounts as amounts ("$1,200" = "1200.00"),
+dates as dates, and text after tidying ("Street" = "St", "Apt" = "Unit" = "#"; less
+detail isn't a contradiction, a different unit is). The result is `matches`, `differs`
+or `listing_silent`. The audit log records which field, never the value. Deleting a
+case removes its facts at once.
 
 ## Evidence files
 

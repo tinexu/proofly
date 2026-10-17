@@ -3,13 +3,14 @@
 // S5 / Compare & review: claimed vs provided, manual assessment with provenance
 // (saved to the API), and how to check independently.
 // Week 7, Day 2: "Supported" names a clean file and says what in it supports the claim.
-// Mismatch handling returns in Week 7, Day 3.
+// Week 7, Day 3: "Listing vs. files" (components/facts.tsx) compares what files say with the listing.
 import { useState } from "react";
 import { CLAIM_TYPES, type Case, type ClaimType, type EvidenceKind } from "@/lib/types";
 import { CLAIM_CONTENT, EVIDENCE_KIND_LABEL, SIGNALS } from "@/lib/content";
 import { assertedFor, evidenceFor } from "@/lib/rules";
 import { api, type ReviewState } from "@/lib/api";
 import { CaseShell, FileLine, Notice, StatusBadge, formatWhen, type CaseContext } from "@/components/ui";
+import { FactsPanel } from "@/components/facts";
 
 function AssessClaim({ kase, type, ctx }: { kase: Case; type: ClaimType; ctx: CaseContext }) {
   const claim = kase.claims[type];
@@ -106,14 +107,7 @@ function AssessClaim({ kase, type, ctx }: { kase: Case; type: ClaimType; ctx: Ca
 function ReviewPanel({ kase, ctx }: { kase: Case; ctx: CaseContext }) {
   return (
     <>
-      <section className="stack">
-        <h2>Mismatches</h2>
-        {kase.evidence.length === 0 ? (
-          <p className="muted">No evidence has been received, so there&apos;s nothing to compare yet. That doesn&apos;t mean everything checks out.</p>
-        ) : (
-          <p className="muted">Proofly doesn&apos;t read files yet, so it can&apos;t spot mismatches for you. Open each file and compare it with the claim yourself, then record your review below.</p>
-        )}
-      </section>
+      <FactsPanel kase={kase} ctx={ctx} />
 
       <section className="stack">
         <h2>Claim by claim</h2>

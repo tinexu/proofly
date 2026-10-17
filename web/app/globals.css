@@ -162,6 +162,13 @@
   .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .compare > div { background: var(--surface-subtle); border-radius: 8px; padding: 10px; overflow-wrap: anywhere; }
   @media (max-width: 480px) { .compare { grid-template-columns: 1fr; } }
+  .fact-row { display: flex; flex-direction: column; gap: 8px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .fact-row:last-child { border-bottom: 0; padding-bottom: 0; }
+  .fact-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+  .fact-result { font-size: 0.85rem; padding: 2px 8px; border-radius: 999px; background: var(--unresolved-bg); color: var(--unresolved); }
+  .fact-differs .compare > div:last-child { background: var(--conflicting-bg); }
+  .fact-result.fact-differs { background: var(--conflicting-bg); color: var(--conflicting); font-weight: 600; }
+  .fact-form { padding-top: 4px; }
   
   .assess summary, details.card summary { cursor: pointer; font-weight: 600; }
   .assess[open] summary { margin-bottom: 10px; }

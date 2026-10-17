@@ -13,7 +13,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.access import owned_case
@@ -21,7 +21,7 @@ from app.db import get_session
 from app.domain import CLAIM_TYPES, CLAIMED_ROLES, DECISIONS, PERMISSION_CLAIMS, PLATFORMS
 from app.audit import describe, record
 from app.rules import apply_rules
-from app.models import AuditEvent, Case, Claim, User
+from app.models import AuditEvent, Case, CaseFact, Claim, User
 from app.sessions import current_user
 
 router = APIRouter(prefix="/cases", tags=["cases"])
@@ -226,6 +226,8 @@ def delete_case(
         claim.reviewer = "rules"
         claim.reviewed_by_id = None
         claim.supporting_evidence_id = None
+    # Facts can hold the address or payment details, so they go now too.
+    db.execute(delete(CaseFact).where(CaseFact.case_id == kase.id))
     record(db, "case.deleted", actor_user_id=user.id, case_id=kase.id)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

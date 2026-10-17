@@ -32,6 +32,18 @@ CASE_STATUSES = ("active", "deleted")
 
 AUDIT_ACTORS = ("user", "subletter", "rules", "system")
 
+# Facts the renter reads in a file, to compare with the listing (Week 7, Day 3),
+# and the claim each one belongs to.
+FACT_CLAIM = {
+    "address": "property_existence",
+    "start_date": "price_and_term",
+    "end_date": "price_and_term",
+    "monthly_rent": "price_and_term",
+    "deposit": "price_and_term",
+    "payment_method": "payment_destination",
+}
+FACT_FIELDS = tuple(FACT_CLAIM)
+
 # Uploaded evidence files start locked until a virus scan passes them (Week 6, Day 4).
 EVIDENCE_STATUSES = ("pending_scan", "clean", "infected", "scan_error")
 EVIDENCE_CONTENT_TYPES = ("application/pdf", "image/png", "image/jpeg", "image/webp", "image/heic")

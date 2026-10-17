@@ -1,5 +1,5 @@
-// Explicit, rules-based evaluation (spec section 09: rules first, AI never decides).
-// Every function here is pure so it can be unit-tested and later ported to the API.
+// Display helpers for the trust model. The API's rules engine (api/app/rules.py) decides
+// claim states and compares facts; these pure functions only present what it decided.
 
 import {
   CLAIM_TYPES,
@@ -9,21 +9,15 @@ import {
   type ClaimType,
   type DisplayStatus,
   type Evidence,
-  type EvidenceKind,
-  type EvidenceSource,
   type FactField,
   type Offer,
 } from "./types";
-import { CLAIM_CONTENT, EVIDENCE_KIND_LABEL, FACT_CLAIM, PERMISSION_LABEL, ROLE_LABEL, SIGNALS } from "./content";
+import { CLAIM_CONTENT, EVIDENCE_KIND_LABEL, FACT_CLAIM, PERMISSION_LABEL, ROLE_LABEL } from "./content";
 
 export function displayStatus(state: ClaimState): DisplayStatus {
   if (state === "SUPPORTED") return "supported";
   if (state === "CONFLICTING") return "conflicting";
   return "unresolved";
-}
-
-export function normalize(value: string): string {
-  return value.toLowerCase().replace(/[$,]/g, "").replace(/\s+/g, " ").trim();
 }
 
 function formatMoney(v: string) {
@@ -57,22 +51,30 @@ export interface Discrepancy {
   evidenceId: string;
 }
 
-export function findDiscrepancies(c: Case, includeAcknowledged = false): Discrepancy[] {
+export const MONEY_FACTS: FactField[] = ["monthlyRent", "deposit"];
+export const DATE_FACTS: FactField[] = ["startDate", "endDate"];
+
+/** Shows a fact value the way people write it: $1,200 and Jan 5, 2027. */
+export function formatFact(field: FactField, value: string | undefined): string {
+  if (!value) return "Not stated";
+  if (MONEY_FACTS.includes(field)) {
+    const n = Number(value.replace(/[$,]/g, ""));
+    return Number.isFinite(n) ? `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : value;
+  }
+  if (DATE_FACTS.includes(field)) {
+    const d = new Date(`${value}T00:00:00`);
+    return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  }
+  return value;
+}
+
+/** Facts where a file and the listing disagree. The API does the comparing (api/app/facts.py). */
+export function findDiscrepancies(c: Case): Discrepancy[] {
   const out: Discrepancy[] = [];
   for (const field of FACT_FIELDS) {
     const fact = c.providedFacts[field];
-    if (!fact) continue;
-    if (fact.acknowledged && !includeAcknowledged) continue;
-    const listed = c.offer[field];
-    if (normalize(listed) !== normalize(fact.value)) {
-      out.push({
-        field,
-        claimType: FACT_CLAIM[field],
-        listed,
-        provided: fact.value,
-        evidenceId: fact.evidenceId,
-      });
-    }
+    if (fact?.result !== "differs") continue;
+    out.push({ field, claimType: FACT_CLAIM[field], listed: fact.listed ?? "", provided: fact.value, evidenceId: fact.evidenceId });
   }
   return out;
 }
@@ -107,13 +109,7 @@ export function paymentFlags(offer: Offer): Flag[] {
 }
 
 // ---------------------------------------------------------------------------
-// Which evidence may move a claim to SUPPORTED automatically. Everything else
-// waits for the renter's review (EVIDENCE_SUBMITTED), which is deliberately conservative.
-
-const AUTO_SUPPORT: { kind: EvidenceKind; source: EvidenceSource; claim: ClaimType }[] = [
-  { kind: "address_match", source: "public_record", claim: "property_existence" },
-  { kind: "manager_confirmation", source: "independent_contact", claim: "sublet_authorization" },
-];
+// Evidence and claims. Claim states come from the API's rules engine (api/app/rules.py).
 
 export function evidenceFor(c: Case, type: ClaimType): Evidence[] {
   return c.evidence.filter((e) => e.claimTypes.includes(type));
@@ -123,47 +119,6 @@ export function evidenceFor(c: Case, type: ClaimType): Evidence[] {
 export function supportingFile(c: Case, type: ClaimType): Evidence | undefined {
   const id = c.claims[type].supportedBy;
   return id ? c.evidence.find((e) => e.id === id) : undefined;
-}
-
-/** Re-derive rule-owned claim states. Manual (user) assessments are left alone. */
-export function applyRules(c: Case, now = new Date().toISOString()): Case {
-  const discrepancies = findDiscrepancies(c);
-  const flags = paymentFlags(c.offer);
-  const claims = { ...c.claims };
-
-  for (const type of CLAIM_TYPES) {
-    const current = claims[type];
-    if (current.reviewer === "user") continue;
-
-    const ev = evidenceFor(c, type);
-    let state: ClaimState = "UNCHECKED";
-    let rationale: string | undefined;
-    let supportIds: string[] = ev.map((e) => e.id);
-
-    if (discrepancies.some((d) => d.claimType === type)) {
-      state = "CONFLICTING";
-      rationale = "Details from the evidence don't match the listing.";
-    } else if (type === "payment_destination" && flags.length) {
-      state = "REVIEW_NEEDED";
-      rationale = flags[0].message;
-    } else {
-      const auto = ev.filter((e) =>
-        AUTO_SUPPORT.some((r) => r.kind === e.kind && r.source === e.source && r.claim === type),
-      );
-      if (auto.length) {
-        state = "SUPPORTED";
-        supportIds = auto.map((e) => e.id);
-        rationale = auto.map((e) => SIGNALS[e.kind].supports).join(" ");
-      } else if (ev.length) {
-        state = "EVIDENCE_SUBMITTED";
-      }
-    }
-
-    if (state !== current.state || rationale !== current.rationale) {
-      claims[type] = { ...current, state, rationale, evidenceIds: supportIds, updatedAt: now };
-    }
-  }
-  return { ...c, claims };
 }
 
 /** Everything that remains unknown: unconfirmed claims + limits of the evidence we do have. */

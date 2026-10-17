@@ -6,9 +6,10 @@ Rules never mark a claim "SUPPORTED" on their own: that needs a person to
 name the evidence behind it (Week 7, Day 2).
 
 Current rules, in priority order for each claim:
-1. payment_destination + a hard-to-reverse payment method -> REVIEW_NEEDED
-2. any evidence that isn't blocked as unsafe            -> EVIDENCE_SUBMITTED
-3. otherwise                                            -> UNCHECKED
+1. a file says something different from the listing     -> CONFLICTING  (Week 7, Day 3)
+2. payment_destination + a hard-to-reverse payment method -> REVIEW_NEEDED
+3. any evidence that isn't blocked as unsafe            -> EVIDENCE_SUBMITTED
+4. otherwise                                            -> UNCHECKED
 
 `evaluate` is a pure function (easy to test). `apply_rules` writes the
 results and logs each change as done by "rules".
@@ -22,8 +23,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.audit import record
-from app.domain import CLAIM_TYPES
-from app.models import Case, Claim, Evidence
+from app.domain import CLAIM_TYPES, FACT_CLAIM, FACT_FIELDS
+from app.facts import FACT_LABEL, compare
+from app.models import Case, CaseFact, Claim, Evidence
 
 # Payment methods that are usually hard to reverse. Kept in step with web/lib/rules.ts.
 HARD_TO_REVERSE = [
@@ -52,12 +54,36 @@ def payment_concern(payment_method: str | None) -> str | None:
     return None
 
 
-def evaluate(payment_method: str | None, evidence_by_claim: dict[str, int]) -> dict[str, Outcome]:
-    """What the rules say for each claim. `evidence_by_claim` counts usable evidence per claim."""
+def _join(labels: list[str]) -> str:
+    return labels[0] if len(labels) == 1 else ", ".join(labels[:-1]) + " and " + labels[-1]
+
+
+def mismatch_note(fields: list[str]) -> str:
+    labels = [FACT_LABEL[f] for f in FACT_FIELDS if f in fields]
+    verb = "differs" if len(labels) == 1 else "differ"
+    return (
+        f"What a file says about the {_join(labels)} {verb} from the listing. Ask the subletter "
+        "why, and check with the landlord or property manager yourself."
+    )
+
+
+def evaluate(
+    payment_method: str | None,
+    evidence_by_claim: dict[str, int],
+    mismatched_fields: list[str] | tuple[str, ...] = (),
+) -> dict[str, Outcome]:
+    """What the rules say for each claim.
+
+    `evidence_by_claim` counts usable evidence per claim; `mismatched_fields`
+    lists the facts (app/facts.py) where a file and the listing disagree.
+    """
     concern = payment_concern(payment_method)
     out: dict[str, Outcome] = {}
     for claim_type in CLAIM_TYPES:
-        if claim_type == "payment_destination" and concern:
+        mismatches = [f for f in mismatched_fields if FACT_CLAIM[f] == claim_type]
+        if mismatches:
+            out[claim_type] = Outcome("CONFLICTING", mismatch_note(mismatches))
+        elif claim_type == "payment_destination" and concern:
             out[claim_type] = Outcome("REVIEW_NEEDED", concern)
         elif evidence_by_claim.get(claim_type, 0) > 0:
             out[claim_type] = Outcome(
@@ -69,6 +95,16 @@ def evaluate(payment_method: str | None, evidence_by_claim: dict[str, int]) -> d
     return out
 
 
+def listed_value(kase: Case, field: str) -> object:
+    """What the listing (the case as entered) says for a fact field."""
+    return getattr(kase, field)
+
+
+def mismatched_fields(db: Session, kase: Case) -> list[str]:
+    facts = db.scalars(select(CaseFact).where(CaseFact.case_id == kase.id))
+    return [f.field for f in facts if compare(f.field, listed_value(kase, f.field), f.value) == "differs"]
+
+
 def apply_rules(db: Session, kase: Case) -> list[str]:
     """Re-evaluate the case's rule-owned claims. Returns the claim types that changed. Caller commits."""
     usable: dict[str, int] = {}
@@ -77,7 +113,7 @@ def apply_rules(db: Session, kase: Case) -> list[str]:
     ):
         usable[claim_type] = usable.get(claim_type, 0) + 1
 
-    outcomes = evaluate(kase.payment_method, usable)
+    outcomes = evaluate(kase.payment_method, usable, mismatched_fields(db, kase))
     now = datetime.now(timezone.utc)
     changed: list[str] = []
     for claim in db.scalars(select(Claim).where(Claim.case_id == kase.id, Claim.reviewer == "rules")):

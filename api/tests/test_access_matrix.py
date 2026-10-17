@@ -31,16 +31,22 @@ CASE_ENDPOINTS = [
     ("POST", "/cases/{case_id}/evidence-requests/{request_id}/revoke", None, 200),
     ("GET", "/cases/{case_id}/evidence", None, 200),
     ("GET", "/cases/{case_id}/evidence/{evidence_id}/file", None, 200),
+    ("GET", "/cases/{case_id}/facts", None, 200),
+    ("PUT", "/cases/{case_id}/facts/{field}", {"value": "900", "evidence_id": "{evidence_id}"}, 200),
+    ("DELETE", "/cases/{case_id}/facts/{field}", None, 204),
 ]
 IDS = [f"{m} {p}" for m, p, _, _ in CASE_ENDPOINTS]
 
 
 def call(client, method, path, body, case_id, ids=None):
     ids = ids or {}
-    url = path.format(
-        case_id=case_id, claim_type="price_and_term",
+    names = dict(
+        case_id=case_id, claim_type="price_and_term", field="monthly_rent",
         request_id=ids.get("request_id", uuid.uuid4()), evidence_id=ids.get("evidence_id", uuid.uuid4()),
     )
+    url = path.format(**names)
+    if body:  # fill in ids the body refers to, like "{evidence_id}"
+        body = {k: v.format(**names) if isinstance(v, str) else v for k, v in body.items()}
     return client.request(method, url, json=body)
 
 

@@ -6,6 +6,7 @@ Screens S1–S6 from the Proofly product spec (v0.1), running on the Proofly API
 - `/r/<token>` is the subletter's page: no account, only the items asked for, sensitive-data warning, consent, PDF/photo checks before sending.
 - **S3/S5** list received files with their virus-check status; clean files download.
 - **S5** (Week 7) can mark a claim **Supported** by choosing a clean file and saying what in it supports the claim. S3 and S6 show which file, and what that file still can't confirm.
+- **S5 "Listing vs. files"** (Week 7): note what a file says about the rent, dates, address, deposit or payment; the API compares it with the listing and flags differences.
 
 ## Run it
 

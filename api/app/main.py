@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from app import auth, cases, claims, evidence_routes
+from app import auth, cases, claims, evidence_routes, fact_routes
 from app.config import get_settings
 from app.db import database_is_reachable
 
@@ -37,6 +37,7 @@ app.include_router(claims.router)
 app.include_router(evidence_routes.owner_router)
 app.include_router(evidence_routes.public_router)
 app.include_router(evidence_routes.evidence_router)
+app.include_router(fact_routes.router)
 
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}

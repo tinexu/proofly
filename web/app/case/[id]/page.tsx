@@ -26,7 +26,7 @@ export default function CaseDashboard() {
             {(disc.length > 0 || flags.length > 0) && (
               <Notice tone="caution" title="Things to look at before going further">
                 <ul>
-                  {disc.length > 0 && <li>{disc.length} detail{disc.length > 1 ? "s" : ""} don't match the listing. <Link href={`/case/${kase.id}/review`}>Compare them</Link>.</li>}
+                  {disc.length > 0 && <li>{disc.length} detail{disc.length > 1 ? "s in the files don't" : " in a file doesn't"} match the listing. <Link href={`/case/${kase.id}/review`}>Compare them</Link>.</li>}
                   {flags.map((f) => <li key={f.message}>{f.message}</li>)}
                 </ul>
               </Notice>

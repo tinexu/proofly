@@ -113,13 +113,14 @@ function LoadedCase({ id, children }: { id: string; children: (kase: Case, ctx: 
 
   const load = useCallback(async (fresh?: ApiCase) => {
     try {
-      const [c, activity, files, links] = await Promise.all([
+      const [c, activity, files, links, facts] = await Promise.all([
         fresh ? Promise.resolve(fresh) : api.getCase(id),
         api.activity(id),
         api.listEvidence(id),
         api.listRequests(id),
+        api.listFacts(id),
       ]);
-      setKase(caseFromApi(c, activity, files, links));
+      setKase(caseFromApi(c, activity, files, links, facts));
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError ? { status: e.status, message: e.message } : { status: 0, message: String(e) });

@@ -2,7 +2,7 @@
 
 import { CLAIM_TYPES, type Case, type Decision } from "./types";
 import { CLAIM_CONTENT, CORE_DISCLAIMER, EVIDENCE_KIND_LABEL, FACT_LABEL, STATE_LABEL } from "./content";
-import { assertedFor, findDiscrepancies, paymentFlags, supportingFile, unknowns } from "./rules";
+import { assertedFor, findDiscrepancies, formatFact, paymentFlags, supportingFile, unknowns } from "./rules";
 
 export const DECISION_LABEL: Record<Decision, string> = {
   proceed_independent: "Continue, after confirming with the landlord independently",
@@ -38,7 +38,10 @@ export function buildSummary(c: Case): string {
   if (disc.length) {
     lines.push(``);
     lines.push(`## Mismatches`);
-    disc.forEach((d) => lines.push(`- ${FACT_LABEL[d.field]}: listing says "${d.listed}", evidence says "${d.provided}"`));
+    disc.forEach((d) => {
+      const file = c.evidence.find((e) => e.id === d.evidenceId)?.fileName ?? "a file";
+      lines.push(`- ${FACT_LABEL[d.field]}: the listing says ${formatFact(d.field, d.listed)}, ${file} says ${formatFact(d.field, d.provided)}`);
+    });
   }
   const flags = paymentFlags(c.offer);
   if (flags.length) {

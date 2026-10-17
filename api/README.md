@@ -12,7 +12,8 @@ FastAPI backend for Proofly.
 - Week 4, Day 8: `DELETE /cases/{id}` and the purge job (`python -m app.purge`)
 - Week 4, Day 9: `PUT /cases/{id}/decision`
 - Week 4, Day 10: access tests for every case endpoint
-- Week 6, Day 1: evidence-request rules and table (`app/evidence_requests.py`); endpoints on Day 2
+- Week 6, Day 1: evidence-request rules and table (`app/evidence_requests.py`)
+- Week 6, Day 2: evidence-link endpoints for the renter, and `POST /evidence-requests/lookup` for the subletter
 
 ## Audit log
 

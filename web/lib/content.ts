@@ -5,6 +5,7 @@
 import type {
   ClaimType,
   ClaimedRole,
+  Decision,
   EvidenceKind,
   EvidenceSource,
   FactField,
@@ -185,3 +186,9 @@ export const FACT_CLAIM: Record<FactField, ClaimType> = {
 
 export const CORE_DISCLAIMER =
   "Completing this checklist is not a safety guarantee. Verify using independent contact info before paying.";
+
+export const DECISION_LABEL: Record<Decision, string> = {
+  proceed_independent: "Continue, after confirming with the landlord independently",
+  pause: "Pause until missing evidence arrives",
+  stop: "Stop. Not continuing with this sublet",
+};

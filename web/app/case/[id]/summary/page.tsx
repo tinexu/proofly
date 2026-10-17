@@ -4,9 +4,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CLAIM_TYPES, type Case, type Decision } from "@/lib/types";
-import { CLAIM_CONTENT, FACT_LABEL } from "@/lib/content";
+import { CLAIM_CONTENT, DECISION_LABEL, FACT_LABEL } from "@/lib/content";
 import { findDiscrepancies, paymentFlags, unknowns } from "@/lib/rules";
-import { DECISION_LABEL, buildSummary } from "@/lib/summary";
 import { api } from "@/lib/api";
 import { CaseShell, Notice, type CaseContext } from "@/components/ui";
 
@@ -38,14 +37,23 @@ function SummaryPanel({ kase, ctx }: { kase: Case; ctx: CaseContext }) {
     }
   }
 
-  function exportSummary() {
-    const blob = new Blob([buildSummary(kase)], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `proofly-case-summary.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+  async function exportSummary(includeNotes: boolean) {
+    setError("");
+    setBusy(true);
+    try {
+      const { blob, filename } = await api.exportCase(kase.id, includeNotes);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      await ctx.reload(); // the download shows in the activity log
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't download the summary.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function remove() {
@@ -98,10 +106,22 @@ function SummaryPanel({ kase, ctx }: { kase: Case; ctx: CaseContext }) {
         <textarea id="note" rows={2} maxLength={1000} value={note} onChange={(e) => { setNote(e.target.value); setSaved(false); }} />
         <div className="row">
           <button className="button" onClick={saveDecision} disabled={!decision || busy}>{busy ? "Saving…" : "Save decision"}</button>
-          <button className="button secondary" onClick={exportSummary}>Download summary</button>
         </div>
         {saved && <p className="small" role="status">Saved.</p>}
         {error && <p className="error small" role="alert">{error}</p>}
+      </section>
+
+      <section className="card stack">
+        <h2>Download a summary</h2>
+        <p className="small">
+          A text file (Markdown) of everything recorded in this case: the offer, each claim and who set it, listing vs.
+          files, file fingerprints, what has NOT been verified, your decision and the activity log.
+        </p>
+        <div className="row">
+          <button className="button secondary" onClick={() => void exportSummary(true)} disabled={busy}>Download summary</button>
+          <button className="button ghost" onClick={() => void exportSummary(false)} disabled={busy}>Download a copy to share</button>
+        </div>
+        <p className="small muted">The copy to share leaves out your notes, the subletter&apos;s contact details and the listing link.</p>
       </section>
 
       <section className="card stack">

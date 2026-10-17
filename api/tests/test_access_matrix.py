@@ -34,6 +34,7 @@ CASE_ENDPOINTS = [
     ("GET", "/cases/{case_id}/facts", None, 200),
     ("PUT", "/cases/{case_id}/facts/{field}", {"value": "900", "evidence_id": "{evidence_id}"}, 200),
     ("DELETE", "/cases/{case_id}/facts/{field}", None, 204),
+    ("GET", "/cases/{case_id}/export", None, 200),
 ]
 IDS = [f"{m} {p}" for m, p, _, _ in CASE_ENDPOINTS]
 

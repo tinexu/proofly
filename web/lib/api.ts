@@ -42,6 +42,19 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T;
 }
 
+/** For downloads made by the API (the case summary): returns the file and its name. */
+async function download(path: string): Promise<{ blob: Blob; filename: string }> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { credentials: "include" });
+  } catch {
+    throw new ApiError(0, messageFrom(0, null));
+  }
+  if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, await res.json().catch(() => null)));
+  const match = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "");
+  return { blob: await res.blob(), filename: match?.[1] ?? "proofly-case-summary.md" };
+}
+
 /** For file uploads: the browser sets the multipart Content-Type itself. */
 async function upload<T>(path: string, form: FormData): Promise<T> {
   let res: Response;
@@ -209,6 +222,10 @@ export const api = {
       state === "SUPPORTED" ? { state, rationale, evidence_id: evidenceId } : { state, rationale }),
   clearReview: (id: string, type: ClaimType) =>
     request<ApiCase>("DELETE", `/cases/${encodeURIComponent(id)}/claims/${type}/review`),
+
+  /** The case summary (Week 7, Day 4). includeNotes=false makes a copy to share. */
+  exportCase: (id: string, includeNotes: boolean) =>
+    download(`/cases/${encodeURIComponent(id)}/export${includeNotes ? "" : "?include_notes=false"}`),
 
   listFacts: (id: string) => request<ApiFact[]>("GET", `/cases/${encodeURIComponent(id)}/facts`),
   putFact: (id: string, field: FactField, value: string, evidenceId: string) =>

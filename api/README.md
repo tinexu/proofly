@@ -20,6 +20,7 @@ FastAPI backend for Proofly.
 - Week 7, Day 1: rules engine (`app/rules.py`): payment flag, evidence received, undo hands back to the rules
 - Week 7, Day 2: "supported" reviews name a clean file from the case (`evidence_id`), enforced in the database too (migration 0007)
 - Week 7, Day 3: facts from files (`/cases/{id}/facts`) compared with the listing; a difference marks the claim conflicting (migration 0008)
+- Week 7, Day 4: `GET /cases/{id}/export`: the case summary as a Markdown download (`?include_notes=false` for a copy to share)
 
 ## Audit log
 
@@ -121,6 +122,15 @@ dates as dates, and text after tidying ("Street" = "St", "Apt" = "Unit" = "#"; l
 detail isn't a contradiction, a different unit is). The result is `matches`, `differs`
 or `listing_silent`. The audit log records which field, never the value. Deleting a
 case removes its facts at once.
+
+## Case summary export
+
+`GET /cases/{id}/export` returns a Markdown file built from the database (`app/export.py`):
+the offer, each claim with who set it and why, listing vs. files, files received with
+SHA-256 fingerprints, what has NOT been verified, how to check independently, the
+decision and the activity log. `?include_notes=false` leaves out the renter's notes,
+the subletter's contact and the listing link. Typed text is escaped so it can't add
+links, images or HTML. Each download is recorded in the activity log.
 
 ## Evidence files
 

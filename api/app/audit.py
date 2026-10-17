@@ -17,7 +17,7 @@ from app.facts import FACT_LABEL
 from app.models import AuditEvent
 
 # Keys allowed in `detail`, and nothing else. Values are short codes, never free text.
-ALLOWED_DETAIL_KEYS = {"method", "platform", "claim_type", "from", "to", "decision", "scope_count", "hours", "file_count", "clean_count", "infected_count", "field"}
+ALLOWED_DETAIL_KEYS = {"method", "platform", "claim_type", "from", "to", "decision", "scope_count", "hours", "file_count", "clean_count", "infected_count", "field", "notes"}
 MAX_VALUE_LENGTH = 40
 
 
@@ -114,6 +114,8 @@ def describe(event: AuditEvent) -> str:
             return f"Noted what a file says about the {FACT_LABEL.get(d.get('field', ''), 'offer')}"
         case "fact.removed":
             return f"Removed your note about the {FACT_LABEL.get(d.get('field', ''), 'offer')}"
+        case "case.exported":
+            return "Downloaded a case summary" + (" to share (without private notes)" if d.get("notes") == "left_out" else "")
         case "case.deleted":
             return "Deleted the case"
         case "case.purged":

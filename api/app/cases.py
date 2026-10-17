@@ -20,6 +20,7 @@ from app.access import owned_case
 from app.db import get_session
 from app.domain import CLAIM_TYPES, CLAIMED_ROLES, DECISIONS, PERMISSION_CLAIMS, PLATFORMS
 from app.audit import describe, record
+from app.rules import apply_rules
 from app.models import AuditEvent, Case, Claim, User
 from app.sessions import current_user
 
@@ -151,6 +152,7 @@ def create_case(
     db.flush()
     # Audit details hold IDs and categories only, never the address or contact.
     record(db, "case.created", actor_user_id=user.id, case_id=kase.id, platform=kase.platform)
+    apply_rules(db, kase)
     db.commit()
     db.refresh(kase)
     return to_case_out(kase)

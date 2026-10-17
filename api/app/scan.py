@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.audit import record
 from app.models import Case, Evidence
+from app.rules import apply_rules
 from app.scanner import EICAR, Scanner, get_scanner
 from app.storage import Storage, StorageError, get_storage
 
@@ -93,6 +94,8 @@ def scan_pending(
         if s.clean or s.infected:
             record(db, "evidence.scanned", actor_type="system", case_id=case_id,
                    clean_count=s.clean, infected_count=s.infected)
+        if s.infected:
+            apply_rules(db, db.get(Case, case_id))  # blocked files no longer count as evidence
     db.commit()
     return summary
 

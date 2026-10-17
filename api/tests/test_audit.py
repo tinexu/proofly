@@ -39,7 +39,7 @@ def test_each_change_adds_exactly_one_event(client, db, outbox):
     sign_in(client, outbox)
     assert actions(db) == ["auth.signed_up"]
 
-    case_id = create(client).json()["id"]
+    case_id = create(client, payment_method=None).json()["id"]
     assert actions(db)[-1] == "case.created"
 
     client.patch(f"/cases/{case_id}/claims/price_and_term", json={"state": "CONFLICTING", "rationale": "Rent differs"})
@@ -112,7 +112,7 @@ def test_deleting_a_user_keeps_their_history_without_them(db):
 
 def test_activity_newest_first_in_plain_words(client, outbox):
     sign_in(client, outbox)
-    case_id = create(client).json()["id"]
+    case_id = create(client, payment_method=None).json()["id"]
     client.patch(f"/cases/{case_id}/claims/price_and_term", json={"state": "CONFLICTING", "rationale": "Rent differs"})
     res = client.get(f"/cases/{case_id}/activity")
     assert res.status_code == 200
@@ -126,7 +126,7 @@ def test_activity_newest_first_in_plain_words(client, outbox):
 
 def test_activity_shows_only_this_case(client, outbox):
     sign_in(client, outbox)
-    first = create(client).json()["id"]
+    first = create(client, payment_method=None).json()["id"]
     create(client)
     assert len(client.get(f"/cases/{first}/activity").json()) == 1
 

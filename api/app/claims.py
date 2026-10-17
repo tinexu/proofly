@@ -3,6 +3,8 @@
 PATCH  /cases/{case_id}/claims/{claim_type}         record a review (state + reason)
 DELETE /cases/{case_id}/claims/{claim_type}/review  undo it; the rules take over again
 
+Undoing a review hands the claim back to the rules engine (app/rules.py).
+
 Every review keeps its provenance: who made it, when, and why. The audit log
 records the change of state, but not the reason text, which may be personal.
 
@@ -24,6 +26,7 @@ from app.cases import CaseOut, to_case_out
 from app.db import get_session
 from app.domain import CLAIM_TYPES
 from app.models import Case, Claim, User
+from app.rules import apply_rules
 from app.sessions import current_user
 
 router = APIRouter(prefix="/cases/{case_id}/claims", tags=["claims"])
@@ -91,14 +94,15 @@ def clear_review(
     claim = _claim(kase, claim_type)
     if claim.reviewer == "user":
         previous = claim.state
-        # Until the rules engine (Week 7) re-evaluates, a cleared claim goes back to unchecked.
-        claim.state = "UNCHECKED"
+        claim.state = "UNCHECKED"  # placeholder; the rules decide below
         claim.rationale = None
         claim.reviewer = "rules"
         claim.reviewed_by_id = None
         claim.updated_at = datetime.now(timezone.utc)
+        db.flush()
+        apply_rules(db, kase)
         record(db, "claim.review_cleared", actor_user_id=user.id, case_id=kase.id,
-               claim_type=claim_type, **{"from": previous, "to": "UNCHECKED"})
+               claim_type=claim_type, **{"from": previous, "to": claim.state})
         db.commit()
         db.refresh(kase)
     return to_case_out(kase)

@@ -43,7 +43,7 @@ def test_mark_claim_conflicting_with_provenance(client, outbox):
 def test_other_claims_are_untouched(client, outbox):
     _, case_id = new_case(client, outbox)
     claims = review(client, case_id).json()["claims"]
-    others = [c for c in claims if c["type"] != "price_and_term"]
+    others = [c for c in claims if c["type"] not in ("price_and_term", "payment_destination")]
     assert all(c["state"] == "UNCHECKED" and c["reviewer"] == "rules" for c in others)
 
 

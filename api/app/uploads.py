@@ -22,7 +22,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import record
 from app.evidence_requests import find_open_by_token
-from app.models import Case, Claim, Evidence, EvidenceRequest
+from app.models import Case, Evidence, EvidenceRequest
+from app.rules import apply_rules
 from app.security import hash_token
 from app.storage import Storage, new_key
 
@@ -154,18 +155,9 @@ def receive(db: Session, storage: Storage, token: str, consent: bool, files: lis
             ))
         db.add_all(rows)
 
-        # Claims that now have evidence move from "not checked yet" to "evidence received".
-        # Claims the renter reviewed by hand are left alone.
-        for claim in db.scalars(select(Claim).where(
-            Claim.case_id == req.case_id,
-            Claim.type.in_({a.claim_type for a in accepted}),
-            Claim.reviewer == "rules",
-            Claim.state == "UNCHECKED",
-        )):
-            claim.state = "EVIDENCE_SUBMITTED"
-            claim.updated_at = now
-
         record(db, "evidence.received", actor_type="subletter", case_id=req.case_id, file_count=len(rows))
+        db.flush()
+        apply_rules(db, db.get(Case, req.case_id))  # claims with files move to "evidence received"
         db.commit()
         return rows
     except Exception:

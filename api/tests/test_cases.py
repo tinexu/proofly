@@ -57,9 +57,18 @@ def test_create_case(client, outbox):
 
 def test_new_case_has_five_unchecked_claims_in_order(client, outbox):
     sign_in(client, outbox)
-    claims = create(client).json()["claims"]
+    claims = create(client, payment_method=None).json()["claims"]
     assert [c["type"] for c in claims] == list(CLAIM_TYPES)
     assert all(c["state"] == "UNCHECKED" and c["reviewer"] == "rules" for c in claims)
+
+
+def test_hard_to_reverse_payment_flagged_on_create(client, outbox):
+    """Rules engine (Week 7): OFFER asks for a Zelle deposit."""
+    sign_in(client, outbox)
+    claims = {c["type"]: c for c in create(client).json()["claims"]}
+    assert claims["payment_destination"]["state"] == "REVIEW_NEEDED"
+    assert "hard to reverse" in claims["payment_destination"]["rationale"]
+    assert all(claims[t]["state"] == "UNCHECKED" for t in CLAIM_TYPES if t != "payment_destination")
 
 
 def test_minimal_case(client, outbox):

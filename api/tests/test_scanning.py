@@ -90,8 +90,8 @@ def test_scan_result_in_activity(client, db, outbox):
     event = db.scalar(select(AuditEvent).where(AuditEvent.action == "evidence.scanned"))
     assert event.actor_type == "system"
     assert event.detail == {"clean_count": 1, "infected_count": 1}
-    top = client.get(f"/cases/{case_id}/activity").json()[0]
-    assert top["description"] == "Virus check finished: 1 clean, 1 blocked as unsafe and deleted"
+    descriptions = [a["description"] for a in client.get(f"/cases/{case_id}/activity").json()]
+    assert "Virus check finished: 1 clean, 1 blocked as unsafe and deleted" in descriptions
 
 
 # --- Downloading ----------------------------------------------------------------------

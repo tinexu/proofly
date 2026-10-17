@@ -87,6 +87,8 @@ def describe(event: AuditEvent) -> str:
             return "Created the case"
         case "claim.reviewed":
             return f'Marked "{claim}" as {to_state}'
+        case "claim.rules_updated":
+            return f'Proofly marked "{claim}" as {to_state}'
         case "claim.review_cleared":
             return f'Cleared your review of "{claim}"'
         case "case.decision_recorded":

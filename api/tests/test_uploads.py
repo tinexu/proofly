@@ -118,7 +118,8 @@ def test_reply_shows_in_activity_as_the_subletter(client, db, outbox):
     event = db.scalar(select(AuditEvent).where(AuditEvent.action == "evidence.received"))
     assert event.actor_type == "subletter" and event.actor_user_id is None
     assert event.detail == {"file_count": 2}
-    received = client.get(f"/cases/{case_id}/activity").json()[1]  # [0] is the virus-check result (Day 4)
+    activity = client.get(f"/cases/{case_id}/activity").json()
+    received = next(a for a in activity if a["action"] == "evidence.received")
     assert received["actor"] == "subletter"
     assert received["description"] == "The subletter sent 2 files (locked until checked for viruses)"
 

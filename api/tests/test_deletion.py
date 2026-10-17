@@ -129,7 +129,7 @@ def test_purge_keeps_the_audit_trail_and_adds_a_purged_event(client, db, outbox)
     client.delete(f"/cases/{case_id}")
     later = NOW + timedelta(hours=get_settings().case_purge_delay_hours + 1)
     purge(db, now=later)
-    assert actions(db, case_id) == ["case.created", "claim.reviewed", "case.deleted", "case.purged"]
+    assert actions(db, case_id) == ["case.created", "claim.rules_updated", "claim.reviewed", "case.deleted", "case.purged"]
     purged = db.scalar(select(AuditEvent).where(AuditEvent.action == "case.purged"))
     assert purged.actor_type == "system" and purged.actor_user_id is None
 

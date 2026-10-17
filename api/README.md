@@ -17,6 +17,7 @@ FastAPI backend for Proofly.
 - Week 6, Day 3: file uploads through a link (`POST /evidence-requests/submit`), private storage, `GET /cases/{id}/evidence`
 - Week 6, Day 4: virus scanning with ClamAV, and downloading clean files (`GET /cases/{id}/evidence/{evidence_id}/file`)
 - Week 6, Day 5: evidence list includes `request_id` (which link a file came through), for the website
+- Week 7, Day 1: rules engine (`app/rules.py`): payment flag, evidence received, undo hands back to the rules
 
 ## Audit log
 
@@ -90,6 +91,18 @@ they never touch your dev data. If Postgres isn't running, they're skipped.
 docker compose down          # keeps data
 docker compose down -v       # deletes data too
 ```
+
+## Rules engine
+
+`app/rules.py` sets claims the renter hasn't reviewed by hand. Every rule is explicit:
+
+1. "Where the money goes" + a hard-to-reverse payment method (Zelle, Venmo, Cash App,
+   wire, gift cards, crypto) → **needs review**, with a neutral explanation
+2. a claim with evidence that wasn't blocked by the virus check → **evidence received**
+3. otherwise → **not checked yet**
+
+Rules never mark a claim "supported", and a manual review always wins. Undoing a
+review hands the claim back to the rules. Changes show in the activity log as "Proofly marked …".
 
 ## Evidence files
 

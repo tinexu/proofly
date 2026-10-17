@@ -15,6 +15,7 @@ FastAPI backend for Proofly.
 - Week 6, Day 1: evidence-request rules and table (`app/evidence_requests.py`)
 - Week 6, Day 2: evidence-link endpoints for the renter, and `POST /evidence-requests/lookup` for the subletter
 - Week 6, Day 3: file uploads through a link (`POST /evidence-requests/submit`), private storage, `GET /cases/{id}/evidence`
+- Week 6, Day 4: virus scanning with ClamAV, and downloading clean files (`GET /cases/{id}/evidence/{evidence_id}/file`)
 
 ## Audit log
 
@@ -93,8 +94,18 @@ docker compose down -v       # deletes data too
 
 Files the subletter sends are checked (type from the file's contents, 10 MB max,
 3 per item, 10 in total), stored under a random name in private storage, and
-start **locked** (`pending_scan`). Nobody can download them until a virus scan
-marks them clean (Week 6, Day 4).
+start **locked** (`pending_scan`). They're scanned with ClamAV right after upload:
+
+- **clean** → unlocked; the renter can download it (always as a download, never shown inline)
+- **infected** → deleted from storage at once; shown as blocked
+- **scanner down or error** → stays locked; `python -m app.scan` retries (run it on a schedule in production)
+
+`docker compose up -d` starts ClamAV next to Postgres. Its first start downloads
+virus signatures and can take a few minutes. Check it with:
+
+```bash
+python -m app.scan --selftest   # should say: Scanner works.
+```
 
 - Development: files go in `api/.storage/` (owner-only permissions, ignored by git).
 - Production: `PROOFLY_STORAGE_BACKEND=s3` with `PROOFLY_S3_BUCKET` and the usual

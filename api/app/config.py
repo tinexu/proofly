@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     s3_region: str = "us-east-1"
     s3_endpoint_url: str | None = None  # only for S3-compatible services other than AWS
 
+    # Virus scanning (Week 6, Day 4): a ClamAV daemon (clamd). docker compose runs one locally.
+    clamd_host: str = "localhost"
+    clamd_port: int = 3310
+    clamd_timeout_seconds: float = 30.0
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

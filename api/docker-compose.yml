@@ -16,5 +16,15 @@ services:
       timeout: 3s
       retries: 10
 
+  # Virus scanner (Week 6, Day 4). The first start downloads virus signatures
+  # (a few hundred MB) and can take a few minutes before it answers.
+  clamav:
+    image: clamav/clamav:stable
+    ports:
+      - "127.0.0.1:3310:3310"
+    volumes:
+      - proofly-clamav:/var/lib/clamav
+
 volumes:
   proofly-db:
+  proofly-clamav:

@@ -79,8 +79,8 @@ def test_upload_files(client, db, outbox, storage):
 
     rows = db.scalars(select(Evidence).where(Evidence.case_id == uuid.UUID(case_id))).all()
     assert {(r.claim_type, r.original_name, r.content_type, r.status) for r in rows} == {
-        ("person_unit_relationship", "lease-page-1.pdf", "application/pdf", "pending_scan"),
-        ("sublet_authorization", "permission.png", "image/png", "pending_scan"),
+        ("person_unit_relationship", "lease-page-1.pdf", "application/pdf", "clean"),  # scanned right away (Day 4)
+        ("sublet_authorization", "permission.png", "image/png", "clean"),
     }
     assert {storage.get(r.storage_key) for r in rows} == {PDF, PNG}
     assert all(len(r.sha256) == 64 and r.size_bytes > 0 for r in rows)
@@ -118,14 +118,15 @@ def test_reply_shows_in_activity_as_the_subletter(client, db, outbox):
     event = db.scalar(select(AuditEvent).where(AuditEvent.action == "evidence.received"))
     assert event.actor_type == "subletter" and event.actor_user_id is None
     assert event.detail == {"file_count": 2}
-    top = client.get(f"/cases/{case_id}/activity").json()[0]
-    assert top["actor"] == "subletter"
-    assert top["description"] == "The subletter sent 2 files (locked until checked for viruses)"
+    received = client.get(f"/cases/{case_id}/activity").json()[1]  # [0] is the virus-check result (Day 4)
+    assert received["actor"] == "subletter"
+    assert received["description"] == "The subletter sent 2 files (locked until checked for viruses)"
 
 
 # --- Renter's list of files -------------------------------------------------------
 
-def test_renter_lists_files_without_storage_details(client, outbox):
+def test_renter_lists_files_without_storage_details(client, outbox, scanner):
+    scanner.up = False  # keep it locked so we see the pending status
     case_id, token = setup_link(client, outbox)
     submit(client, token, [("sublet_authorization", "permission.pdf", PDF)])
     files = client.get(f"/cases/{case_id}/evidence").json()

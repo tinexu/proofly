@@ -6,6 +6,8 @@ For the renter (signed in, own case only):
   POST /cases/{case_id}/evidence-requests/{request_id}/revoke    close a link early
 
   GET  /cases/{case_id}/evidence                                 files received (Week 6, Day 3)
+  GET  /cases/{case_id}/evidence/{evidence_id}/file               download a file, only once
+                                                                 it passed the virus check (Day 4)
 
 For the subletter (no account):
   POST /evidence-requests/lookup  {token}   what a link asks for, if it's still open
@@ -21,7 +23,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException
@@ -46,6 +48,8 @@ from app.evidence_requests import (
 )
 from app.models import Case, Evidence, EvidenceRequest, User
 from app.sessions import current_user
+from app.scan import scan_pending
+from app.scanner import Scanner, get_scanner
 from app.storage import Storage, StorageError, get_storage
 from app.uploads import MAX_FILE_BYTES, MAX_FILES_TOTAL, IncomingFile, LinkClosed, UploadRejected, receive
 
@@ -201,6 +205,7 @@ async def submit(
     request: Request,
     db: Session = Depends(get_session),
     storage: Storage = Depends(get_storage),
+    scanner: Scanner = Depends(get_scanner),
 ) -> SubmitResult:
     try:
         form = await request.form(max_files=MAX_FILES_TOTAL, max_fields=10)
@@ -229,9 +234,48 @@ async def submit(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="We couldn't save your files just now. Nothing was sent; please try again in a few minutes.",
         ) from e
+
+    # Scan straight away. If the scanner is down the files simply stay locked and
+    # `python -m app.scan` picks them up later, so this never fails the upload.
+    try:
+        await run_in_threadpool(scan_pending, db, storage, scanner, [r.id for r in rows])
+    except Exception:
+        db.rollback()
     return SubmitResult(received=len(rows))
 
 
 @evidence_router.get("", response_model=list[EvidenceOut])
 def list_evidence(kase: Case = Depends(owned_case), db: Session = Depends(get_session)) -> list[Evidence]:
     return list(db.scalars(select(Evidence).where(Evidence.case_id == kase.id).order_by(Evidence.uploaded_at.desc())))
+
+
+@evidence_router.get("/{evidence_id}/file", response_class=Response)
+def download(
+    evidence_id: UUID,
+    kase: Case = Depends(owned_case),
+    db: Session = Depends(get_session),
+    storage: Storage = Depends(get_storage),
+) -> Response:
+    """Only files that passed the virus check. Always a download, never shown inline."""
+    ev = db.get(Evidence, evidence_id)
+    if ev is None or ev.case_id != kase.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
+    if ev.status != "clean":
+        message = {
+            "pending_scan": "This file is still being checked for viruses. Try again in a minute.",
+            "scan_error": "This file couldn't be checked for viruses yet, so it stays locked.",
+            "infected": "This file was blocked by the virus check and deleted.",
+        }[ev.status]
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail=message)
+    try:
+        data = storage.get(ev.storage_key)
+    except StorageError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.") from e
+    return Response(
+        content=data,
+        media_type=ev.content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{ev.original_name}"',
+            "Content-Security-Policy": "sandbox; default-src 'none'",
+        },
+    )

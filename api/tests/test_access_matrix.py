@@ -30,20 +30,31 @@ CASE_ENDPOINTS = [
     ("GET", "/cases/{case_id}/evidence-requests", None, 200),
     ("POST", "/cases/{case_id}/evidence-requests/{request_id}/revoke", None, 200),
     ("GET", "/cases/{case_id}/evidence", None, 200),
+    ("GET", "/cases/{case_id}/evidence/{evidence_id}/file", None, 200),
 ]
 IDS = [f"{m} {p}" for m, p, _, _ in CASE_ENDPOINTS]
 
 
-def call(client, method, path, body, case_id, request_id=None):
-    url = path.format(case_id=case_id, claim_type="price_and_term", request_id=request_id or uuid.uuid4())
+def call(client, method, path, body, case_id, ids=None):
+    ids = ids or {}
+    url = path.format(
+        case_id=case_id, claim_type="price_and_term",
+        request_id=ids.get("request_id", uuid.uuid4()), evidence_id=ids.get("evidence_id", uuid.uuid4()),
+    )
     return client.request(method, url, json=body)
 
 
-def owners_case(client) -> tuple[str, str]:
-    """As the signed-in owner: a case plus one evidence link on it."""
+def owners_case(client) -> tuple[str, dict]:
+    """As the signed-in owner: a case with an evidence link and one clean uploaded file."""
     case_id = create(client).json()["id"]
-    res = client.post(f"/cases/{case_id}/evidence-requests", json={"scopes": ["sublet_authorization"]})
-    return case_id, res.json()["id"]
+    req = client.post(f"/cases/{case_id}/evidence-requests", json={"scopes": ["sublet_authorization", "price_and_term"]}).json()
+    token = req["link"].rsplit("/r/", 1)[1]
+    client.post("/evidence-requests/submit", data={"token": token, "consent": "true"},
+                files=[("sublet_authorization", ("a.pdf", b"%PDF-1.7 test"))])
+    evidence_id = client.get(f"/cases/{case_id}/evidence").json()[0]["id"]
+    # A second, still-open link for the revoke row.
+    request_id = client.post(f"/cases/{case_id}/evidence-requests", json={"scopes": ["price_and_term"]}).json()["id"]
+    return case_id, {"request_id": request_id, "evidence_id": evidence_id}
 
 
 def test_every_case_endpoint_is_covered():
@@ -66,9 +77,9 @@ def test_signed_out_gets_401(client, method, path, body, ok):
 @pytest.mark.parametrize("method,path,body,ok", CASE_ENDPOINTS, ids=IDS)
 def test_stranger_gets_404(client, outbox, method, path, body, ok):
     sign_in(client, outbox)
-    case_id, request_id = owners_case(client)
+    case_id, ids = owners_case(client)
     as_other_user(client, outbox)
-    res = call(client, method, path, body, case_id, request_id)
+    res = call(client, method, path, body, case_id, ids)
     assert res.status_code == 404
     assert res.json() == {"detail": "Case not found."}
 
@@ -84,16 +95,16 @@ def test_unknown_case_gets_the_same_404(client, outbox, method, path, body, ok):
 @pytest.mark.parametrize("method,path,body,ok", CASE_ENDPOINTS, ids=IDS)
 def test_deleted_case_gets_404_even_for_owner(client, outbox, method, path, body, ok):
     sign_in(client, outbox)
-    case_id, request_id = owners_case(client)
+    case_id, ids = owners_case(client)
     assert client.delete(f"/cases/{case_id}").status_code == 204
-    assert call(client, method, path, body, case_id, request_id).status_code == 404
+    assert call(client, method, path, body, case_id, ids).status_code == 404
 
 
 @pytest.mark.parametrize("method,path,body,ok", CASE_ENDPOINTS, ids=IDS)
 def test_owner_succeeds(client, outbox, method, path, body, ok):
     sign_in(client, outbox)
-    case_id, request_id = owners_case(client)
-    assert call(client, method, path, body, case_id, request_id).status_code == ok
+    case_id, ids = owners_case(client)
+    assert call(client, method, path, body, case_id, ids).status_code == ok
 
 
 @pytest.mark.parametrize("method,path", [("GET", "/cases"), ("POST", "/cases")])
